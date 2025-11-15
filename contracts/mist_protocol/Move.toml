@@ -7,6 +7,7 @@ authors = ["Mist Protocol Team"]
 [dependencies]
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet", override = true }
 usdc = { git = "https://github.com/circlefin/stablecoin-sui.git", subdir = "packages/usdc", rev = "master" }
+enclave = { local = "../enclave" }
 
 
 [addresses]
