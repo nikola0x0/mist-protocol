@@ -2,10 +2,11 @@
 
 [move]
 version = 3
-manifest_digest = "F82F74B934A5F1F5FD3DF80301327FE43C8B6DEADA1AF79AA9A7051E4B40A52E"
-deps_digest = "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600"
+manifest_digest = "6BCADDDFEE29698EC599931F143440607604C7162FE2D210D6FAF207C3464B8B"
+deps_digest = "060AD7E57DFB13104F21BE5F5C3759D03F0553FC3229247D9A7A6B45F50D03A3"
 dependencies = [
   { id = "Sui", name = "Sui" },
+  { id = "enclave", name = "enclave" },
   { id = "usdc", name = "usdc" },
 ]
 
@@ -19,6 +20,14 @@ source = { git = "https://github.com/MystenLabs/sui.git", rev = "framework/testn
 
 dependencies = [
   { id = "MoveStdlib", name = "MoveStdlib" },
+]
+
+[[move.package]]
+id = "enclave"
+source = { local = "../enclave" }
+
+dependencies = [
+  { id = "Sui", name = "Sui" },
 ]
 
 [[move.package]]
@@ -49,7 +58,7 @@ dependencies = [
 ]
 
 [move.toolchain-version]
-compiler-version = "1.56.1"
+compiler-version = "1.60.0"
 edition = "2024.beta"
 flavor = "sui"
 

@@ -1,4 +1,50 @@
+# Environment variables
 .env
+.env.local
+.env.*.local
 .mcp.json
+
+# Frontend (Node.js)
 node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+.npm/
+.pnpm-store/
+
+# Backend (Rust)
+backend/target/
+backend/Cargo.lock
+backend/**/*.rs.bk
+
+# Contracts (Move)
+contracts/**/build/
+contracts/**/.move/
+
+# Nautilus
+nautilus/**/target/
+nautilus/**/.move/
+nautilus/**/build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

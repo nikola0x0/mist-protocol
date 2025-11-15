@@ -14,6 +14,10 @@ module mist_protocol::mist_protocol {
     use sui::sui::SUI;
     use usdc::usdc::USDC;
 
+    // ============ WITNESS (for Nautilus Enclave) ============
+    /// One-Time-Witness for creating Enclave capability
+    public struct MIST_PROTOCOL has drop {}
+
     // ============ ERRORS ============
     const E_INSUFFICIENT_BALANCE: u64 = 1;
     const E_NOT_AUTHORIZED: u64 = 2;
@@ -78,7 +82,7 @@ module mist_protocol::mist_protocol {
     }
 
     // ============ INIT ============
-    fun init(ctx: &mut TxContext) {
+    fun init(_witness: MIST_PROTOCOL, ctx: &mut TxContext) {
         let pool = LiquidityPool {
             id: object::new(ctx),
             sui_balance: balance::zero(),
@@ -87,7 +91,7 @@ module mist_protocol::mist_protocol {
             paused: false,
         };
         transfer::share_object(pool);
-        
+
         let admin_cap = AdminCap {
             id: object::new(ctx),
         };
