@@ -1,1 +1,0 @@
-/Users/nikola/Developer/hackathon/mist-protocol/backend/target/debug/nautilus-server: /Users/nikola/Developer/hackathon/mist-protocol/backend/src/apps/mist-protocol/mod.rs /Users/nikola/Developer/hackathon/mist-protocol/backend/src/common.rs /Users/nikola/Developer/hackathon/mist-protocol/backend/src/lib.rs /Users/nikola/Developer/hackathon/mist-protocol/backend/src/main.rs
