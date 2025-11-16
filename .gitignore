@@ -19,6 +19,14 @@ backend/target/
 backend/Cargo.lock
 backend/**/*.rs.bk
 
+backend-seal/target/
+backend-seal/Cargo.lock
+backend-seal/**/*.rs.bk
+
+backend-cetus/target/
+backend-cetus/Cargo.lock
+backend-cetus/**/*.rs.bk
+
 # Contracts (Move)
 contracts/**/build/
 contracts/**/.move/
