@@ -10,6 +10,9 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+// SEAL test endpoints for encryption/decryption testing
+pub mod seal_test;
+
 /// ====
 /// Mist Protocol: Privacy-preserving swap intent processing
 /// ====

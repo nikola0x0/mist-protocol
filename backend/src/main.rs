@@ -11,6 +11,9 @@ use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
+#[cfg(feature = "mist-protocol")]
+use nautilus_server::app::seal_test::{decrypt_test, encrypt_test, round_trip_test};
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let eph_kp = Ed25519KeyPair::generate(&mut rand::thread_rng());
@@ -35,15 +38,27 @@ async fn main() -> Result<()> {
     }
 
     // Define your own restricted CORS policy here if needed.
-    let cors = CorsLayer::new().allow_methods(Any).allow_headers(Any);
+    let cors = CorsLayer::new()
+        .allow_methods(Any)
+        .allow_headers(Any)
+        .allow_origin(Any); // Allow all origins for development
 
-    let app = Router::new()
+    let mut app = Router::new()
         .route("/", get(ping))
         .route("/get_attestation", get(get_attestation))
         .route("/process_data", post(process_data))
-        .route("/health_check", get(health_check))
-        .with_state(state)
-        .layer(cors);
+        .route("/health_check", get(health_check));
+
+    // Add SEAL test endpoints for mist-protocol feature
+    #[cfg(feature = "mist-protocol")]
+    {
+        app = app
+            .route("/seal/decrypt", post(decrypt_test))
+            .route("/seal/encrypt", post(encrypt_test))
+            .route("/seal/round_trip", post(round_trip_test));
+    }
+
+    let app = app.with_state(state).layer(cors);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     info!("listening on {}", listener.local_addr().unwrap());

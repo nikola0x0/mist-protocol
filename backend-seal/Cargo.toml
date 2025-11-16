@@ -29,6 +29,7 @@ lazy_static = "1.4"
 uuid = { version = "1.0", features = ["v4"] }
 regex = { version = "1.5", optional = true }
 hex = "0.4"
+base64 = "0.21"
 
 sui-sdk-types = { git = "https://github.com/mystenlabs/sui-rust-sdk", features = ["serde"], rev = "86a9e06", optional = true }
 sui-crypto = { git = "https://github.com/mystenlabs/sui-rust-sdk", features = ["ed25519"], rev = "86a9e06", optional = true }

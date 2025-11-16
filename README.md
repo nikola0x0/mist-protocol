@@ -8,36 +8,39 @@ Built with: Nautilus • Seal • Walrus • Cetus • Sui
 
 ## Overview
 
-Mist Protocol enables private DeFi transactions through intent-based execution with verifiable TEE computation. Users express trading intents that are processed securely through Nautilus enclaves, executed via escrow contracts, and settled on Cetus DEX—all while keeping transaction amounts encrypted.
+Mist Protocol enables private DeFi swaps through a vault + ticket system with Nautilus TEE execution. Users deposit tokens and receive encrypted tickets representing balances. The Nautilus TEE decrypts intents and executes swaps with its own wallet, making individual user swaps unlinkable on-chain.
 
 ### Key Features
 
-- **Intent-Based Trading:** Express trading intents without exposing amounts
-- **TEE Verification:** Nautilus-powered trusted execution with on-chain attestation
-- **Encrypted Escrow:** Sui Move contracts with encrypted amount storage (eUSDC)
-- **DEX Integration:** Automated swap execution on Cetus (USDC/SUI, CETUS/WMNT/FlowX)
-- **Decentralized Storage:** Walrus for cost-efficient metadata storage
+- **Nautilus TEE:** AWS Nitro Enclaves for trusted execution with attestation
+- **Encrypted Tickets:** Vault balances encrypted with SEAL threshold encryption
+- **TEE Wallet:** TEE executes swaps with own wallet (unlinks users from swaps)
+- **User + TEE Decryption:** Both users and TEE can decrypt ticket amounts
+- **Flexible Deposits:** Users split deposits into multiple tickets
+- **Private Swaps:** Swap amounts and ticket balances remain encrypted
 
 ---
 
 ## Architecture
 
 ```
-User Intent → Nautilus TEE → Wallet → Cetus DEX
-                                ↓
-                          Escrow Contract (eUSDC)
-                                ↓
-                          Intent Creation → Backend
-                                ↓
-                          Execute Tx + Walrus Storage
+User Deposits → Mist Pool → Vault (Tickets) → SEAL Encrypted Intent
+                   ↓                                    ↓
+              Lock Tokens                    Nautilus TEE Decrypts
+                                                       ↓
+                                            TEE Wallet Swaps on Cetus
+                                                       ↓
+                                            Vault Tickets Updated (encrypted)
 ```
 
 ### Components
 
-**Nautilus TEE:** Self-managed AWS Nitro enclaves for verifiable computation
-**Escrow Contracts:** Sui Move contracts handling encrypted deposits
-**Intent System:** Backend processing layer for DEX interaction
-**Walrus Storage:** Decentralized data access layer for transaction metadata
+**Nautilus TEE:** AWS Nitro Enclaves for verifiable computation
+**Vault System:** Per-user vaults with encrypted tickets (SEAL)
+**Mist Pool:** Shared liquidity pool holding all user deposits
+**TEE Wallet:** Separate wallet for executing swaps (breaks user→swap linkage)
+**SEAL Encryption:** Threshold encryption for ticket amounts
+**Cetus Integration:** DEX execution with TEE wallet
 
 ---
 

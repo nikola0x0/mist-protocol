@@ -56,6 +56,8 @@ impl IntoResponse for EnclaveError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
             EnclaveError::GenericError(e) => (StatusCode::BAD_REQUEST, e),
+            EnclaveError::InvalidInput(e) => (StatusCode::BAD_REQUEST, e),
+            EnclaveError::DecryptionFailed(e) => (StatusCode::INTERNAL_SERVER_ERROR, e),
         };
         let body = Json(json!({
             "error": error_message,
@@ -68,12 +70,16 @@ impl IntoResponse for EnclaveError {
 #[derive(Debug)]
 pub enum EnclaveError {
     GenericError(String),
+    InvalidInput(String),
+    DecryptionFailed(String),
 }
 
 impl fmt::Display for EnclaveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             EnclaveError::GenericError(e) => write!(f, "{}", e),
+            EnclaveError::InvalidInput(e) => write!(f, "Invalid input: {}", e),
+            EnclaveError::DecryptionFailed(e) => write!(f, "Decryption failed: {}", e),
         }
     }
 }
