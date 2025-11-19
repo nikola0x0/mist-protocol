@@ -6,9 +6,10 @@
 /// for BOTH the user AND the Nautilus TEE to decrypt vault balances using Seal threshold encryption.
 
 module mist_protocol::seal_policy {
-    use enclave::enclave::Enclave;
-    use mist_protocol::mist_protocol::MIST_PROTOCOL;
     use sui::hash::blake2b256;
+    use std::string::String;
+    use sui::object_bag::{Self, ObjectBag};
+    use enclave::enclave::Enclave;
 
     /// Error: Caller doesn't have permission to approve
     const ENoAccess: u64 = 0;
@@ -16,11 +17,28 @@ module mist_protocol::seal_policy {
     /// Error: Invalid namespace prefix
     const EInvalidNamespace: u64 = 1;
 
-    /// Vault entry - namespace for user's encrypted balances
+    /// Error: Not vault owner
+    const ENotOwner: u64 = 2;
+
+    /// Error: Ticket not found
+    const ETicketNotFound: u64 = 3;
+
+    /// Vault entry - container for user's encrypted ticket balances
     /// Shared object that both user and TEE can reference
     public struct VaultEntry has key {
         id: UID,
         owner: address,  // User who owns this vault
+        tickets: ObjectBag,  // Collection of EncryptedTicket objects
+        next_ticket_id: u64,  // Sequential ID for tickets
+    }
+
+    /// Encrypted ticket representing a token balance
+    /// Stored inside the vault's ObjectBag
+    public struct EncryptedTicket has key, store {
+        id: UID,
+        ticket_id: u64,  // Sequential ID for easy tracking
+        token_type: String,  // "SUI", "USDC", etc.
+        encrypted_amount: vector<u8>,  // SEAL encrypted balance
     }
 
     /// Create a vault for the user
@@ -28,7 +46,73 @@ module mist_protocol::seal_policy {
         VaultEntry {
             id: object::new(ctx),
             owner: ctx.sender(),
+            tickets: object_bag::new(ctx),
+            next_ticket_id: 0,
         }
+    }
+
+    /// Get vault owner
+    public fun owner(vault: &VaultEntry): address {
+        vault.owner
+    }
+
+    /// Get tickets bag reference (for reading)
+    public fun tickets(vault: &VaultEntry): &ObjectBag {
+        &vault.tickets
+    }
+
+    /// Get mutable tickets bag reference (for mist_protocol module)
+    public(package) fun tickets_mut(vault: &mut VaultEntry): &mut ObjectBag {
+        &mut vault.tickets
+    }
+
+    /// Get next ticket ID
+    public fun next_ticket_id(vault: &VaultEntry): u64 {
+        vault.next_ticket_id
+    }
+
+    /// Increment next ticket ID (for mist_protocol module)
+    public(package) fun increment_ticket_id(vault: &mut VaultEntry) {
+        vault.next_ticket_id = vault.next_ticket_id + 1;
+    }
+
+    /// Check if vault owns a specific ticket
+    public fun has_ticket(vault: &VaultEntry, ticket_id: u64): bool {
+        vault.tickets.contains(ticket_id)
+    }
+
+    /// Create a new encrypted ticket (for mist_protocol module)
+    public(package) fun new_ticket(
+        ticket_id: u64,
+        token_type: String,
+        encrypted_amount: vector<u8>,
+        ctx: &mut TxContext
+    ): EncryptedTicket {
+        EncryptedTicket {
+            id: object::new(ctx),
+            ticket_id,
+            token_type,
+            encrypted_amount,
+        }
+    }
+
+    /// Get ticket fields (for reading)
+    public fun ticket_id(ticket: &EncryptedTicket): u64 {
+        ticket.ticket_id
+    }
+
+    public fun token_type(ticket: &EncryptedTicket): String {
+        ticket.token_type
+    }
+
+    public fun encrypted_amount(ticket: &EncryptedTicket): vector<u8> {
+        ticket.encrypted_amount
+    }
+
+    /// Destroy a ticket (for mist_protocol module)
+    public(package) fun destroy_ticket(ticket: EncryptedTicket) {
+        let EncryptedTicket { id, ticket_id: _, token_type: _, encrypted_amount: _ } = ticket;
+        object::delete(id);
     }
 
     /// Entry function to create vault
@@ -82,10 +166,11 @@ module mist_protocol::seal_policy {
 
     /// TEE seal_approve (requires enclave)
     /// Allows registered TEE to decrypt for swap execution
-    entry fun seal_approve_tee(
+    /// Generic over witness type W
+    public entry fun seal_approve_tee<W: drop>(
         id: vector<u8>,
         vault: &VaultEntry,
-        enclave: &Enclave<MIST_PROTOCOL>,
+        enclave: &Enclave<W>,
         ctx: &TxContext
     ) {
         // Verify namespace matches
@@ -103,10 +188,11 @@ module mist_protocol::seal_policy {
 
     /// Combined seal_approve (user OR TEE)
     /// Kept for backwards compatibility
-    entry fun seal_approve(
+    /// Generic over witness type W
+    public entry fun seal_approve<W: drop>(
         id: vector<u8>,
         vault: &VaultEntry,
-        enclave: &Enclave<MIST_PROTOCOL>,
+        enclave: &Enclave<W>,
         ctx: &TxContext
     ) {
         // Verify namespace matches

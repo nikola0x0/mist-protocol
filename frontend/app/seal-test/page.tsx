@@ -22,7 +22,7 @@ export default function SealTestPage() {
   const [amount, setAmount] = useState("100000000");
   const [vaultId, setVaultId] = useState("");
   const [enclaveId, setEnclaveId] = useState("");
-  const [encryptedData, setEncryptedData] = useState("");
+  const [encryptedData, setEncryptedData] = useState<Uint8Array | null>(null);
   const [decryptedAmount, setDecryptedAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
@@ -59,6 +59,16 @@ export default function SealTestPage() {
     ]);
   };
 
+  // Helper: Extract pure hex address from potential type identifier
+  const sanitizeHexId = (input: string): string => {
+    if (!input) return input;
+    // If it contains ::, it's a type identifier - extract the address part
+    if (input.includes("::")) {
+      return input.split("::")[0];
+    }
+    return input;
+  };
+
   // Create vault
   const handleCreateVault = async () => {
     if (!account || !packageId) {
@@ -87,14 +97,30 @@ export default function SealTestPage() {
           },
           {
             onSuccess: (result: any) => {
+              // Debug: Log all object changes
+              addLog(`📦 Object changes: ${JSON.stringify(result.objectChanges)}`);
+
               const vaultObj = result.objectChanges?.find(
                 (obj: any) => obj.type === "created" && obj.owner?.Shared
               );
 
               if (vaultObj) {
+                // IMPORTANT: Use objectId, NOT objectType
+                // objectType contains the full type like "0x...::seal_policy::VaultEntry"
+                // objectId is just the hex address
                 const id = vaultObj.objectId;
-                setVaultId(id);
-                addLog(`✅ Vault created: ${id}`);
+
+                // Validate it's a pure hex string (no :: separators)
+                if (id.includes("::")) {
+                  addLog(`⚠️ Warning: objectId contains type info, extracting address...`);
+                  const cleanId = id.split("::")[0];
+                  setVaultId(cleanId);
+                  addLog(`✅ Vault created: ${cleanId}`);
+                } else {
+                  setVaultId(id);
+                  addLog(`✅ Vault created: ${id}`);
+                }
+
                 addLog(`   Owner: ${account.address}`);
                 resolve();
               } else {
@@ -127,7 +153,12 @@ export default function SealTestPage() {
 
       // Generate encryption ID (vault namespace + nonce)
       const nonce = crypto.getRandomValues(new Uint8Array(5));
-      const vaultBytes = fromHex(vaultId);
+
+      // CRITICAL: Sanitize vaultId to ensure it's pure hex (not a type identifier)
+      const cleanVaultId = sanitizeHexId(vaultId);
+      addLog(`   Vault ID: ${cleanVaultId}`);
+
+      const vaultBytes = fromHex(cleanVaultId);
       const encryptionId = toHex(new Uint8Array([...vaultBytes, ...nonce]));
 
       addLog(`   Encryption ID: ${encryptionId.substring(0, 40)}...`);
@@ -146,10 +177,11 @@ export default function SealTestPage() {
         throw new Error("Encryption failed - no key servers");
       }
 
+      // Store as Uint8Array (encryptedObject is already Uint8Array from encrypt())
       setEncryptedData(encryptedObject);
       addLog(`✅ Encrypted successfully!`);
       addLog(`   Key servers: ${parsed.services.length}`);
-      addLog(`   Length: ${encryptedObject.length} chars`);
+      addLog(`   Size: ${encryptedObject.length} bytes`);
     } catch (error: any) {
       addLog(`❌ Encryption failed: ${error.message || error}`);
       console.error("Encryption error:", error);
@@ -205,9 +237,12 @@ export default function SealTestPage() {
         });
       }
 
-      // Parse encryption ID
+      // Parse encryption ID from encryptedData (which is Uint8Array)
       const parsed = EncryptedObject.parse(encryptedData);
-      const encryptionId = parsed.id;
+      const rawEncryptionId = parsed.id;
+
+      // Sanitize encryption ID (might contain type info)
+      const encryptionId = sanitizeHexId(rawEncryptionId);
       addLog(`   Encryption ID: ${encryptionId.substring(0, 40)}...`);
 
       // Build seal_approve transaction (user-only version - no enclave needed!)
@@ -216,21 +251,27 @@ export default function SealTestPage() {
         target: `${packageId}::seal_policy::seal_approve_user`,
         arguments: [
           tx.pure.vector("u8", Array.from(fromHex(encryptionId))),
-          tx.object(vaultId),
+          tx.object(sanitizeHexId(vaultId)),
         ],
       });
 
       addLog("   Building seal_approve_user transaction...");
 
-      // Sign with session key
-      const signedTx = await sk.signTransaction(tx);
-      addLog("   ✅ Transaction signed");
+      // Build transaction bytes for SEAL
+      // IMPORTANT: Use onlyTransactionKind: true to avoid needing a sender
+      const txBytes = await tx.build({
+        client: sealSuiClient,
+        onlyTransactionKind: true,
+      });
+      addLog("   ✅ Transaction built");
 
-      // Call SEAL key servers
+      // Call SEAL key servers with new API
       addLog("   Calling SEAL key servers...");
+
       const decrypted = await sealClient.decrypt({
-        encryptedObject: encryptedData,
-        signedTransaction: signedTx,
+        data: encryptedData, // encryptedData is Uint8Array
+        sessionKey: sk,
+        txBytes: txBytes,
       });
 
       // Decode
