@@ -7,6 +7,7 @@
 
 module mist_protocol::seal_policy {
     use sui::hash::blake2b256;
+    use sui::event;
     use std::string::String;
     use sui::object_bag::{Self, ObjectBag};
     use enclave::enclave::Enclave;
@@ -22,6 +23,21 @@ module mist_protocol::seal_policy {
 
     /// Error: Ticket not found
     const ETicketNotFound: u64 = 3;
+
+    /// Error: User already has a vault
+    const EAlreadyHasVault: u64 = 4;
+
+    /// Registry of user's vaults (owned object for easy discovery)
+    public struct VaultRegistry has key, store {
+        id: UID,
+        vault_ids: vector<ID>,  // List of vault IDs owned by this user
+    }
+
+    /// Event: Vault created
+    public struct VaultCreatedEvent has copy, drop {
+        vault_id: ID,
+        owner: address,
+    }
 
     /// Vault entry - container for user's encrypted ticket balances
     /// Shared object that both user and TEE can reference
@@ -115,10 +131,61 @@ module mist_protocol::seal_policy {
         object::delete(id);
     }
 
-    /// Entry function to create vault
+    /// Create a new vault registry for the user
+    fun new_registry(ctx: &mut TxContext): VaultRegistry {
+        VaultRegistry {
+            id: object::new(ctx),
+            vault_ids: vector::empty(),
+        }
+    }
+
+    /// Get vault IDs from registry
+    public fun registry_vault_ids(registry: &VaultRegistry): vector<ID> {
+        registry.vault_ids
+    }
+
+    /// Entry function to create vault with registry
+    /// Creates both a shared VaultEntry and an owned VaultRegistry
     entry fun create_vault_entry(ctx: &mut TxContext) {
         let vault = create_vault(ctx);
-        transfer::share_object(vault);  // Shared so TEE can access
+        let vault_id = object::id(&vault);
+
+        // Create registry for this user
+        let mut registry = new_registry(ctx);
+        registry.vault_ids.push_back(vault_id);
+
+        // Emit event for indexing
+        event::emit(VaultCreatedEvent {
+            vault_id,
+            owner: ctx.sender(),
+        });
+
+        // Transfer registry to user (owned)
+        transfer::transfer(registry, ctx.sender());
+
+        // Share vault (so TEE can access)
+        transfer::share_object(vault);
+    }
+
+    /// Entry function to add additional vault to existing registry
+    entry fun add_vault_to_registry(
+        registry: &mut VaultRegistry,
+        ctx: &mut TxContext
+    ) {
+        let vault = create_vault(ctx);
+        let vault_id = object::id(&vault);
+
+        // Add to registry
+        registry.vault_ids.push_back(vault_id);
+
+        // Emit event
+        event::emit(VaultCreatedEvent {
+            vault_id,
+            owner: ctx.sender(),
+        });
+
+        // Share vault
+        transfer::share_object(vault);
     }
 
     /// Get the namespace bytes for SEAL encryption

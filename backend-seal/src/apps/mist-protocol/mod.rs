@@ -317,42 +317,77 @@ async fn decrypt_with_seal_real(
 
     tracing::info!("✅ Session key created, TEE address: {}", certificate.user);
 
-    // Step 3: Build seal_approve_tee PTB
+    // Step 3: Build seal_approve PTB
+    // Use seal_approve_user for testing (no enclave needed)
+    // Use seal_approve_tee for production (with enclave)
     use std::str::FromStr;
     let vault_obj_id = ObjectId::from_str(vault_id)
         .map_err(|e| EnclaveError::GenericError(format!("Invalid vault ID: {}", e)))?;
 
-    let enclave_obj_id = ObjectId::from_str(enclave_id)
-        .map_err(|e| EnclaveError::GenericError(format!("Invalid enclave ID: {}", e)))?;
+    // Check if we have a real enclave ID (not placeholder "0x0")
+    let use_enclave = enclave_id != "0x0" && enclave_id != "0x00";
 
-    let ptb = ProgrammableTransaction {
-        inputs: vec![
-            Input::Pure {
-                value: bcs::to_bytes(&encrypted_obj.id).unwrap(),
-            },
-            Input::Pure {
-                value: bcs::to_bytes(&vault_obj_id).unwrap(),
-            },
-            Input::Pure {
-                value: bcs::to_bytes(&enclave_obj_id).unwrap(),
-            },
-        ],
-        commands: vec![
-            Command::MoveCall(MoveCall {
-                package: SEAL_CONFIG.package_id,
-                module: Identifier::new("seal_policy").unwrap(),
-                function: Identifier::new("seal_approve_tee").unwrap(),
-                type_arguments: vec![],
-                arguments: vec![
-                    Argument::Input(0), // encryption_id
-                    Argument::Input(1), // vault
-                    Argument::Input(2), // enclave
-                ],
-            }),
-        ],
+    let ptb = if use_enclave {
+        // Production mode: seal_approve_tee (requires enclave)
+        tracing::info!("🔐 Using seal_approve_tee (production mode with enclave)");
+        let enclave_obj_id = ObjectId::from_str(enclave_id)
+            .map_err(|e| EnclaveError::GenericError(format!("Invalid enclave ID: {}", e)))?;
+
+        ProgrammableTransaction {
+            inputs: vec![
+                Input::Pure {
+                    value: bcs::to_bytes(&encrypted_obj.id).unwrap(),
+                },
+                Input::Pure {
+                    value: bcs::to_bytes(&vault_obj_id).unwrap(),
+                },
+                Input::Pure {
+                    value: bcs::to_bytes(&enclave_obj_id).unwrap(),
+                },
+            ],
+            commands: vec![
+                Command::MoveCall(MoveCall {
+                    package: SEAL_CONFIG.package_id,
+                    module: Identifier::new("seal_policy").unwrap(),
+                    function: Identifier::new("seal_approve_tee").unwrap(),
+                    type_arguments: vec![],
+                    arguments: vec![
+                        Argument::Input(0), // encryption_id
+                        Argument::Input(1), // vault
+                        Argument::Input(2), // enclave
+                    ],
+                }),
+            ],
+        }
+    } else {
+        // Development mode: seal_approve_user (no enclave needed)
+        tracing::info!("🧪 Using seal_approve_user (dev mode - no enclave)");
+
+        ProgrammableTransaction {
+            inputs: vec![
+                Input::Pure {
+                    value: bcs::to_bytes(&encrypted_obj.id).unwrap(),
+                },
+                Input::Pure {
+                    value: bcs::to_bytes(&vault_obj_id).unwrap(),
+                },
+            ],
+            commands: vec![
+                Command::MoveCall(MoveCall {
+                    package: SEAL_CONFIG.package_id,
+                    module: Identifier::new("seal_policy").unwrap(),
+                    function: Identifier::new("seal_approve_user").unwrap(),
+                    type_arguments: vec![],
+                    arguments: vec![
+                        Argument::Input(0), // encryption_id
+                        Argument::Input(1), // vault
+                    ],
+                }),
+            ],
+        }
     };
 
-    tracing::info!("✅ PTB built for seal_approve_tee");
+    tracing::info!("✅ PTB built for seal_approve");
 
     // Step 4: Create FetchKeyRequest
     let (_enc_secret, enc_key, enc_verification_key) = &*ENCRYPTION_KEYS;
