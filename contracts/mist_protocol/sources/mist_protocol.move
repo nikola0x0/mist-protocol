@@ -9,8 +9,7 @@ module mist_protocol::mist_protocol;
 module mist_protocol::mist_protocol;
 
 use mist_protocol::seal_policy::{Self, VaultEntry};
-use std::option::{Self, Option};
-use std::string::{Self, String};
+use std::string::{Self as string, String};
 use sui::balance::{Self, Balance};
 use sui::coin::{Self, Coin};
 use sui::event;
@@ -71,7 +70,8 @@ public struct SwapIntentEvent has copy, drop {
     vault_id: ID,
     ticket_ids_in: vector<u64>,
     token_out: String,
-    encrypted_intent: vector<u8>,
+    min_output_amount: u64,  // Slippage protection
+    deadline: u64,           // Unix timestamp
     user: address,
 }
 
@@ -244,7 +244,8 @@ entry fun create_swap_intent(
     vault: &VaultEntry,
     ticket_ids_in: vector<u64>,
     token_out: String,
-    encrypted_intent: vector<u8>,
+    min_output_amount: u64,
+    deadline: u64,
     ctx: &TxContext,
 ) {
     assert!(seal_policy::owner(vault) == tx_context::sender(ctx), E_NOT_OWNER);
@@ -262,7 +263,8 @@ entry fun create_swap_intent(
         vault_id: object::id(vault),
         ticket_ids_in,
         token_out,
-        encrypted_intent,
+        min_output_amount,
+        deadline,
         user: tx_context::sender(ctx),
     });
 }

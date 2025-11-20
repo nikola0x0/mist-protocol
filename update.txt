@@ -1,0 +1,96 @@
+✅ Contract Redesign Complete!
+
+  What Changed:
+
+  1. SwapIntentEvent - Simplified & Clear 
+  (mist_protocol.move:70-77)
+
+  // BEFORE:
+  public struct SwapIntentEvent has copy, drop {
+      vault_id: ID,
+      ticket_ids_in: vector<u64>,
+      token_out: String,
+      encrypted_intent: vector<u8>,  // ❌ Misleading name
+      user: address,
+  }
+
+  // AFTER:
+  public struct SwapIntentEvent has copy, drop {
+      vault_id: ID,
+      ticket_ids_in: vector<u64>,
+      token_out: String,
+      min_output_amount: u64,  // ✅ Clear purpose
+      deadline: u64,           // ✅ Clear purpose
+      user: address,
+  }
+
+  2. create_swap_intent - Simplified Signature 
+  (mist_protocol.move:244-250)
+
+  // BEFORE:
+  entry fun create_swap_intent(
+      vault: &VaultEntry,
+      ticket_ids_in: vector<u64>,
+      token_out: String,
+      encrypted_intent: vector<u8>,  // ❌ Confusing
+      ctx: &TxContext,
+  )
+
+  // AFTER:
+  entry fun create_swap_intent(
+      vault: &VaultEntry,
+      ticket_ids_in: vector<u64>,
+      token_out: String,
+      min_output_amount: u64,  // ✅ Explicit
+      deadline: u64,           // ✅ Explicit
+      ctx: &TxContext,
+  )
+
+  3. Cleaned Up Warnings:
+
+  - ✅ Removed duplicate aliases (std::option)
+  - ✅ Removed unused constants (ENotOwner, ETicketNotFound,
+  EAlreadyHasVault)
+  - ✅ Fixed public entry to public following Nautilus framework
+  pattern
+  - ✅ Zero warnings on build
+
+  4. Frontend Updated (page.tsx:664-677)
+
+  // BEFORE:
+  tx.pure.vector("u8", encryptedIntentBytes)
+
+  // AFTER:
+  tx.pure.u64(parseInt(swapConfig.minOutput)),
+  tx.pure.u64(swapConfig.deadline),
+
+  ---
+  📦 New Deployment:
+
+  - Package: 0x9bc71e8b6e13346e94039d937cbf0eff5006455ec8fc5c3331d
+  cf2a1af63e18a
+  - Pool: 0xd9cdf3b70335d5adedaf5fe307ae2a3aeed88ace9f837312b3b772
+  8618253604
+  - TX: 3TbggRbEWTf4AJBubw63gr3VkUES91vpGRkL8oXEBYqA
+
+  ---
+  🎯 Privacy Model (Now Clear):
+
+  What's Private (SEAL Encrypted):
+  - ✅ Ticket amounts (encrypted when deposited)
+
+  What's Public (Plaintext):
+  - Ticket IDs (just references)
+  - Token types (SUI, USDC, etc.)
+  - Slippage parameters (min_output_amount)
+  - Deadline (timestamp)
+
+  Why This Works:
+  The sensitive data (amounts) are encrypted. The swap parameters
+  don't reveal how much you're swapping - only that you want USDC
+  and your slippage tolerance!
+
+  ---
+  Next: The backend needs to be updated to listen for
+  SwapIntentEvent with the new fields (min_output_amount, deadline
+   instead of encrypted_intent).

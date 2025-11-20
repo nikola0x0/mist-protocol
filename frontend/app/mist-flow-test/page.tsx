@@ -6,9 +6,10 @@ import {
   useCurrentAccount,
   useSuiClient,
   useSignAndExecuteTransaction,
+  useSignPersonalMessage,
 } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
-import { SealClient, EncryptedObject } from "@mysten/seal";
+import { SealClient, EncryptedObject, SessionKey } from "@mysten/seal";
 import { fromHex, toHex } from "@mysten/sui/utils";
 import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
 
@@ -22,6 +23,7 @@ export default function MistFlowTestPage() {
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
+  const { mutate: signPersonalMessage } = useSignPersonalMessage();
 
   // Configuration
   const packageId = process.env.NEXT_PUBLIC_PACKAGE_ID!;
@@ -52,7 +54,6 @@ export default function MistFlowTestPage() {
     minOutput: "95000000",
     deadline: Math.floor(Date.now() / 1000) + 3600,
   });
-  const [encryptedSwapIntent, setEncryptedSwapIntent] = useState<Uint8Array | null>(null);
   const [swapResult, setSwapResult] = useState<any>(null);
 
   // UI state
@@ -67,6 +68,34 @@ export default function MistFlowTestPage() {
   // ============================================================================
   // PHASE 1: SETUP - Vault Discovery
   // ============================================================================
+
+  const initializeSealClient = async () => {
+    if (sealClient) return; // Already initialized
+
+    try {
+      addLog("🔐 Initializing SEAL client...");
+
+      // Create a fresh SuiClient for SEAL
+      const sealSuiClient = new SuiClient({ url: getFullnodeUrl("testnet") });
+
+      const server1 = process.env.NEXT_PUBLIC_SEAL_SERVER_1 || "0x73d05d62c18d9374e3ea529e8e0ed6161da1a141a94d3f76ae3fe4e99356db75";
+      const server2 = process.env.NEXT_PUBLIC_SEAL_SERVER_2 || "0xf5d14a81a982144ae441cd7d64b09027f116a468bd36e7eca494f750591623c8";
+
+      const client = new SealClient({
+        suiClient: sealSuiClient,
+        serverConfigs: [
+          { objectId: server1, weight: 1 },
+          { objectId: server2, weight: 1 },
+        ],
+        verifyKeyServers: false,
+      });
+
+      setSealClient(client);
+      addLog("✅ SEAL client initialized");
+    } catch (error: any) {
+      addLog(`❌ SEAL client init failed: ${error.message}`);
+    }
+  };
 
   const discoverVaults = async () => {
     if (!account) {
@@ -93,31 +122,44 @@ export default function MistFlowTestPage() {
         return;
       }
 
-      // Get the registry object details
-      const registry = registries.data[0];
-      const registryObjectId = registry.data?.objectId;
-      setRegistryId(registryObjectId || "");
+      addLog(`📋 Found ${registries.data.length} registry/registries`);
 
-      addLog(`📋 Found registry: ${registryObjectId?.substring(0, 20)}...`);
+      // Collect all vault IDs from ALL registries
+      const allVaultIds: string[] = [];
 
-      // Extract vault IDs from registry
-      const registryDetails = await suiClient.getObject({
-        id: registryObjectId!,
-        options: { showContent: true },
-      });
+      for (const registry of registries.data) {
+        const registryObjectId = registry.data?.objectId;
+        if (!registryObjectId) continue;
 
-      if (registryDetails.data?.content?.dataType === "moveObject") {
-        const fields = registryDetails.data.content.fields as any;
-        const vaultIds = fields.vault_ids || [];
+        // Extract vault IDs from this registry
+        const registryDetails = await suiClient.getObject({
+          id: registryObjectId,
+          options: { showContent: true },
+        });
 
-        addLog(`✅ Found ${vaultIds.length} vault(s)`);
-        setAvailableVaults(vaultIds);
-
-        // Auto-select first vault
-        if (vaultIds.length > 0) {
-          setVaultId(vaultIds[0]);
-          addLog(`🗄️ Selected vault: ${vaultIds[0].substring(0, 20)}...`);
+        if (registryDetails.data?.content?.dataType === "moveObject") {
+          const fields = registryDetails.data.content.fields as any;
+          const vaultIds = fields.vault_ids || [];
+          allVaultIds.push(...vaultIds);
+          addLog(`  📦 Registry ${registryObjectId.substring(0, 20)}... has ${vaultIds.length} vault(s)`);
         }
+      }
+
+      // Use the first registry for adding new vaults
+      const firstRegistry = registries.data[0];
+      const firstRegistryId = firstRegistry.data?.objectId;
+      setRegistryId(firstRegistryId || "");
+
+      addLog(`✅ Found ${allVaultIds.length} total vault(s)`);
+      setAvailableVaults(allVaultIds);
+
+      // Auto-select first vault and initialize SEAL client
+      if (allVaultIds.length > 0) {
+        setVaultId(allVaultIds[0]);
+        addLog(`🗄️ Selected vault: ${allVaultIds[0].substring(0, 20)}...`);
+
+        // Initialize SEAL client if not already initialized
+        await initializeSealClient();
       }
     } catch (error: any) {
       addLog(`❌ Discovery error: ${error.message || error}`);
@@ -134,13 +176,35 @@ export default function MistFlowTestPage() {
 
     try {
       setLoading(true);
-      addLog("🗄️ Creating vault...");
+
+      // Check if user already has a registry
+      const registries = await suiClient.getOwnedObjects({
+        owner: account.address,
+        filter: {
+          StructType: `${packageId}::seal_policy::VaultRegistry`,
+        },
+      });
 
       const tx = new Transaction();
-      tx.moveCall({
-        target: `${packageId}::seal_policy::create_vault_entry`,
-        arguments: [],
-      });
+
+      if (registries.data.length > 0) {
+        // User has a registry - add vault to existing registry
+        const existingRegistryId = registries.data[0].data?.objectId;
+        addLog(`🗄️ Adding vault to existing registry...`);
+
+        tx.moveCall({
+          target: `${packageId}::seal_policy::add_vault_to_registry`,
+          arguments: [tx.object(existingRegistryId!)],
+        });
+      } else {
+        // User doesn't have a registry - create first vault
+        addLog("🗄️ Creating first vault...");
+
+        tx.moveCall({
+          target: `${packageId}::seal_policy::create_vault_entry`,
+          arguments: [],
+        });
+      }
 
       await new Promise<void>((resolve, reject) => {
         signAndExecute(
@@ -257,34 +321,51 @@ export default function MistFlowTestPage() {
 
       // Load each ticket from the ObjectBag
       const loadedTickets = [];
+      const objectBagId = fields.tickets.fields.id.id;
+
+      addLog(`📂 ObjectBag ID: ${objectBagId.substring(0, 20)}...`);
+
       for (let i = 0; i < nextTicketId; i++) {
         try {
           // Query dynamic field (ticket in ObjectBag)
+          // Note: value must be a string representation of the u64
           const ticketField = await suiClient.getDynamicFieldObject({
-            parentId: fields.tickets.fields.id.id,
+            parentId: objectBagId,
             name: {
               type: "u64",
               value: i.toString(),
             },
           });
 
+          addLog(`  🔍 Raw ticket field: ${JSON.stringify(ticketField.data?.content)?.substring(0, 100)}...`);
+
           if (ticketField.data?.content?.dataType === "moveObject") {
             const ticketFields = ticketField.data.content.fields as any;
-            const encryptedAmountBytes = ticketFields.value.fields.encrypted_amount;
+
+            // The ticket is the entire object, not nested in 'value'
+            const encryptedAmountBytes = ticketFields.encrypted_amount || ticketFields.value?.fields?.encrypted_amount;
+            const tokenType = ticketFields.token_type || ticketFields.value?.fields?.token_type;
+            const ticketId = ticketFields.ticket_id || ticketFields.value?.fields?.ticket_id;
+
+            if (!encryptedAmountBytes) {
+              addLog(`  ⚠️ Ticket #${i} has no encrypted_amount field`);
+              continue;
+            }
+
             const encryptedAmountHex = toHex(new Uint8Array(encryptedAmountBytes));
 
             loadedTickets.push({
-              id: i,
-              tokenType: ticketFields.value.fields.token_type,
+              id: ticketId !== undefined ? ticketId : i,
+              tokenType: tokenType || "UNKNOWN",
               amount: "?", // We don't know the amount until decryption
               encryptedAmount: encryptedAmountHex,
               txUrl: `https://testnet.suivision.xyz/object/${ticketField.data.objectId}`,
             });
 
-            addLog(`  ✅ Loaded Ticket #${i} (${ticketFields.value.fields.token_type})`);
+            addLog(`  ✅ Loaded Ticket #${i} (${tokenType})`);
           }
-        } catch (err) {
-          addLog(`  ⚠️ Ticket #${i} not found (may have been consumed)`);
+        } catch (err: any) {
+          addLog(`  ⚠️ Ticket #${i} error: ${err.message}`);
         }
       }
 
@@ -434,17 +515,33 @@ export default function MistFlowTestPage() {
       // Step 1: Parse encrypted data
       addLog(`📝 Parsing encrypted data...`);
       const encryptedBytes = fromHex(ticket.encryptedAmount);
-      const parsed = EncryptedObject.parse(encryptedBytes);
-      const encryptionIdHex = toHex(parsed.id);
 
-      addLog(`🔑 Encryption ID: ${encryptionIdHex.substring(0, 20)}...`);
+      addLog(`🔍 Encrypted bytes length: ${encryptedBytes.length}`);
+
+      const parsed = EncryptedObject.parse(new Uint8Array(encryptedBytes));
+
+      // Ensure encryptionId is a proper Uint8Array
+      let encryptionId: Uint8Array;
+      if (parsed.id instanceof Uint8Array) {
+        encryptionId = parsed.id;
+      } else if (Array.isArray(parsed.id)) {
+        encryptionId = new Uint8Array(parsed.id);
+      } else if (typeof parsed.id === 'string') {
+        // It's a hex string, convert to Uint8Array
+        encryptionId = fromHex(parsed.id);
+      } else {
+        throw new Error(`Unexpected encryption ID type: ${typeof parsed.id}`);
+      }
+
+      const encryptionIdHex = toHex(encryptionId);
+      addLog(`🔑 Encryption ID (${encryptionId.length} bytes): ${encryptionIdHex.substring(0, 20)}...`);
 
       // Step 2: Build seal_approve_user PTB
       const tx = new Transaction();
       tx.moveCall({
         target: `${packageId}::seal_policy::seal_approve_user`,
         arguments: [
-          tx.pure.vector("u8", Array.from(parsed.id)),
+          tx.pure.vector("u8", Array.from(encryptionId)),
           tx.object(vaultId),
         ],
       });
@@ -459,47 +556,78 @@ export default function MistFlowTestPage() {
         onlyTransactionKind: true
       });
 
-      // Step 3: Fetch decryption keys from SEAL servers
-      addLog(`🔑 Fetching decryption keys...`);
-      const sessionKey = await sealClient.getSessionKey(account.address);
-
-      await sealClient.fetchKeys({
-        ids: [parsed.id],
-        txBytes,
-        sessionKey,
-        threshold: 2,
+      // Step 3: Create session key and request signature
+      addLog(`🔑 Creating session key...`);
+      const sessionKey = await SessionKey.create({
+        address: account.address,
+        packageId,
+        ttlMin: 10, // 10 minutes
+        suiClient: sealSuiClient,
       });
 
-      // Step 4: Decrypt locally
-      addLog(`🔓 Decrypting locally...`);
-      const decryptedData = await sealClient.decrypt({
-        data: encryptedBytes,
-        sessionKey,
-        txBytes,
+      // Step 4: Request personal message signature from user
+      addLog(`✍️ Requesting signature from wallet...`);
+      const personalMessage = sessionKey.getPersonalMessage();
+
+      await new Promise<void>((resolve, reject) => {
+        signPersonalMessage(
+          { message: personalMessage },
+          {
+            onSuccess: async (result) => {
+              try {
+                addLog(`✅ Signature received`);
+
+                // Set the signature on the session key
+                await sessionKey.setPersonalMessageSignature(result.signature);
+
+                // Step 5: Fetch decryption keys from SEAL servers
+                addLog(`🔑 Fetching decryption keys...`);
+
+                await sealClient.fetchKeys({
+                  ids: [parsed.id],
+                  txBytes,
+                  sessionKey,
+                  threshold: 2,
+                });
+                addLog(`✅ Keys fetched successfully`);
+
+                // Step 6: Decrypt locally
+                addLog(`🔓 Decrypting locally...`);
+                const decryptedData = await sealClient.decrypt({
+                  data: encryptedBytes,
+                  sessionKey,
+                  txBytes,
+                });
+
+                // Step 7: Decode the decrypted amount
+                const decoder = new TextDecoder();
+                const decryptedAmount = decoder.decode(decryptedData);
+
+                addLog(`✅ Decrypted amount: ${decryptedAmount} (${(parseInt(decryptedAmount) / 1_000_000_000).toFixed(4)} SUI)`);
+                addLog(`✅ ✓ Decryption successful! You own this ticket.`);
+
+                // Update ticket with decrypted amount
+                setTickets((prev) =>
+                  prev.map((t) =>
+                    t.id === ticketId
+                      ? { ...t, decryptedAmount, amount: decryptedAmount }
+                      : t
+                  )
+                );
+
+                resolve();
+              } catch (error: any) {
+                addLog(`❌ Decryption process failed: ${error.message}`);
+                reject(error);
+              }
+            },
+            onError: (error) => {
+              addLog(`❌ Signature rejected: ${error.message}`);
+              reject(error);
+            },
+          }
+        );
       });
-
-      // Step 5: Decode the decrypted amount
-      const decoder = new TextDecoder();
-      const decryptedAmount = decoder.decode(decryptedData);
-
-      addLog(`✅ Decrypted amount: ${decryptedAmount} (${(parseInt(decryptedAmount) / 1_000_000_000).toFixed(4)} SUI)`);
-      addLog(`✅ Original amount: ${ticket.amount}`);
-
-      // Verify they match
-      if (decryptedAmount === ticket.amount) {
-        addLog(`✅ ✓ Decryption verified! Amounts match.`);
-      } else {
-        addLog(`⚠️ Warning: Decrypted amount doesn't match original`);
-      }
-
-      // Update ticket with decrypted amount
-      setTickets((prev) =>
-        prev.map((t) =>
-          t.id === ticketId
-            ? { ...t, decryptedAmount }
-            : t
-        )
-      );
 
     } catch (error: any) {
       addLog(`❌ Decryption failed: ${error.message || error}`);
@@ -514,9 +642,9 @@ export default function MistFlowTestPage() {
   // PHASE 3: SWAP - Encrypt Intent & Send to TEE
   // ============================================================================
 
-  const handleEncryptSwapIntent = async () => {
-    if (!sealClient || !vaultId) {
-      addLog("❌ Please create vault first");
+  const handleCreateSwapIntent = async () => {
+    if (!vaultId || !account) {
+      addLog("❌ Please select vault and connect wallet first");
       return;
     }
 
@@ -527,108 +655,58 @@ export default function MistFlowTestPage() {
 
     try {
       setLoading(true);
-      addLog("🔐 Encrypting swap intent with SEAL...");
+      addLog("🔄 Creating swap intent on-chain...");
 
-      // Generate encryption ID
-      const nonce = crypto.getRandomValues(new Uint8Array(5));
-      const cleanVaultId = sanitizeHexId(vaultId);
-      const vaultBytes = fromHex(cleanVaultId);
-      const combined = new Uint8Array(vaultBytes.length + nonce.length);
-      combined.set(vaultBytes, 0);
-      combined.set(nonce, vaultBytes.length);
-      const encryptionId = toHex(combined);
+      addLog(`   Tickets: [${selectedTicketIds.join(", ")}]`);
+      addLog(`   Token Out: ${swapConfig.tokenOut}`);
+      addLog(`   Min Output: ${swapConfig.minOutput}`);
 
-      addLog(`   Tickets: ${selectedTicketIds.join(", ")}`);
-      addLog(`   Target: ${swapConfig.tokenOut}`);
+      // Call create_swap_intent on-chain (no encryption needed!)
+      addLog(`📝 Submitting swap intent transaction...`);
 
-      // Calculate total amount from selected tickets
-      const totalAmount = selectedTicketIds.reduce((sum, ticketId) => {
-        const ticket = tickets.find((t) => t.id === ticketId);
-        return sum + parseInt(ticket?.amount || "0");
-      }, 0);
-
-      // Build swap intent
-      const intent = {
-        ticket_ids: selectedTicketIds,
-        token_out: swapConfig.tokenOut,
-        amount: totalAmount,
-        min_output: parseInt(swapConfig.minOutput),
-        deadline: swapConfig.deadline,
-      };
-
-      addLog(`   Amount: ${totalAmount} units`);
-
-      // Encrypt with SEAL
-      const intentJson = JSON.stringify(intent);
-      const { encryptedObject } = await sealClient.encrypt({
-        threshold: 2,
-        packageId,
-        id: encryptionId,
-        data: new TextEncoder().encode(intentJson),
+      const tx = new Transaction();
+      tx.moveCall({
+        target: `${packageId}::mist_protocol::create_swap_intent`,
+        arguments: [
+          tx.object(vaultId),
+          tx.pure.vector("u64", selectedTicketIds),
+          tx.pure.string(swapConfig.tokenOut),
+          tx.pure.u64(parseInt(swapConfig.minOutput)),
+          tx.pure.u64(swapConfig.deadline),
+        ],
       });
 
-      setEncryptedSwapIntent(encryptedObject);
-      addLog(`✅ Swap intent encrypted (${encryptedObject.length} bytes)`);
+      await new Promise<void>((resolve, reject) => {
+        signAndExecute(
+          { transaction: tx },
+          {
+            onSuccess: async (result) => {
+              addLog(`✅ Swap intent TX: ${result.digest}`);
+              addLog(`🎉 SwapIntentEvent emitted on-chain!`);
+              addLog(`🤖 Backend will detect and process the swap...`);
+              addLog(`📺 View TX: https://testnet.suivision.xyz/txblock/${result.digest}`);
+
+              setSwapResult({
+                digest: result.digest,
+                txUrl: `https://testnet.suivision.xyz/txblock/${result.digest}`,
+              });
+
+              resolve();
+            },
+            onError: (error) => {
+              addLog(`❌ Swap intent failed: ${error.message}`);
+              reject(error);
+            },
+          }
+        );
+      });
     } catch (error: any) {
-      addLog(`❌ Encryption failed: ${error.message || error}`);
+      addLog(`❌ Error: ${error.message || error}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSendToTEE = async () => {
-    if (!encryptedSwapIntent || !vaultId) {
-      addLog("❌ Please encrypt intent first");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      addLog("📤 Sending encrypted intent to TEE backend...");
-
-      // Convert to hex
-      const hexData = toHex(encryptedSwapIntent);
-      const parsed = EncryptedObject.parse(new Uint8Array(encryptedSwapIntent));
-      const encryptionIdHex = toHex(parsed.id);
-
-      addLog(`   Encryption ID: ${encryptionIdHex.substring(0, 40)}...`);
-      addLog(`   Data size: ${encryptedSwapIntent.length} bytes`);
-
-      const response = await fetch(`${backendUrl}/process_data`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          payload: {
-            intent_id: `intent-${Date.now()}`,
-            encrypted_data: hexData,
-            key_id: encryptionIdHex,
-            vault_id: vaultId,
-            enclave_id: enclaveId || "0x0",
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Backend error: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      setSwapResult(result);
-
-      addLog("✅ TEE processed swap successfully!");
-      addLog(`   Input: ${result.response.data.input_amount} ${result.response.data.token_in}`);
-      addLog(`   Output: ${result.response.data.output_amount} ${result.response.data.token_out}`);
-
-      if (result.response.data.tx_hash) {
-        addLog(`   TX: ${result.response.data.tx_hash}`);
-      }
-    } catch (error: any) {
-      addLog(`❌ TEE processing failed: ${error.message || error}`);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // ============================================================================
   // UI RENDERING
@@ -688,7 +766,10 @@ export default function MistFlowTestPage() {
                       </label>
                       <select
                         value={vaultId}
-                        onChange={(e) => setVaultId(e.target.value)}
+                        onChange={async (e) => {
+                          setVaultId(e.target.value);
+                          await initializeSealClient();
+                        }}
                         className="w-full bg-gray-900 border border-gray-700 rounded px-4 py-2"
                       >
                         {availableVaults.map((id, index) => (
@@ -892,33 +973,46 @@ export default function MistFlowTestPage() {
                     />
                   </div>
 
+                  <div className="text-sm text-gray-400 bg-gray-900 rounded p-4 mb-4">
+                    <p className="font-medium mb-2">ℹ️ What happens:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Submits swap intent on-chain (ticket IDs, token out, slippage)</li>
+                      <li>Emits SwapIntentEvent with encrypted ticket amounts</li>
+                      <li>Backend event listener detects the swap request</li>
+                      <li>TEE decrypts ticket amounts using SEAL</li>
+                      <li>TEE executes swap on Cetus DEX</li>
+                      <li>TEE creates encrypted output tickets in your vault</li>
+                    </ul>
+                    <p className="font-medium mt-3 mb-2">🔐 Privacy:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Ticket amounts are SEAL encrypted (already done in Phase 2)</li>
+                      <li>Only TEE can decrypt via seal_approve_tee</li>
+                      <li>Swap amounts never revealed publicly</li>
+                    </ul>
+                  </div>
+
                   <button
-                    onClick={handleEncryptSwapIntent}
+                    onClick={handleCreateSwapIntent}
                     disabled={loading || selectedTicketIds.length === 0}
                     className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 px-6 py-3 rounded-lg font-medium"
                   >
-                    {loading ? "Encrypting..." : "🔐 Encrypt Swap Intent"}
+                    {loading ? "Creating..." : "🔄 Create Swap Intent"}
                   </button>
-
-                  {encryptedSwapIntent && (
-                    <button
-                      onClick={handleSendToTEE}
-                      disabled={loading}
-                      className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-gray-700 px-6 py-3 rounded-lg font-medium"
-                    >
-                      {loading ? "Processing..." : "📤 Send to TEE Backend"}
-                    </button>
-                  )}
 
                   {swapResult && (
                     <div className="bg-green-900/20 border border-green-700 rounded p-4">
-                      <h3 className="font-medium text-green-400 mb-2">✅ Swap Executed!</h3>
+                      <h3 className="font-medium text-green-400 mb-2">✅ Swap Intent Created!</h3>
                       <div className="text-sm space-y-1">
-                        <p>Input: {swapResult.response.data.input_amount} {swapResult.response.data.token_in}</p>
-                        <p>Output: {swapResult.response.data.output_amount} {swapResult.response.data.token_out}</p>
-                        {swapResult.response.data.tx_hash && (
-                          <p className="text-blue-400">TX: {swapResult.response.data.tx_hash.substring(0, 20)}...</p>
-                        )}
+                        <p>Event emitted on-chain</p>
+                        <a
+                          href={swapResult.txUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:underline block"
+                        >
+                          View Transaction →
+                        </a>
+                        <p className="text-gray-400 mt-2">Backend will process this swap automatically</p>
                       </div>
                     </div>
                   )}

@@ -18,15 +18,6 @@ module mist_protocol::seal_policy {
     /// Error: Invalid namespace prefix
     const EInvalidNamespace: u64 = 1;
 
-    /// Error: Not vault owner
-    const ENotOwner: u64 = 2;
-
-    /// Error: Ticket not found
-    const ETicketNotFound: u64 = 3;
-
-    /// Error: User already has a vault
-    const EAlreadyHasVault: u64 = 4;
-
     /// Registry of user's vaults (owned object for easy discovery)
     public struct VaultRegistry has key, store {
         id: UID,
@@ -234,7 +225,7 @@ module mist_protocol::seal_policy {
     /// TEE seal_approve (requires enclave)
     /// Allows registered TEE to decrypt for swap execution
     /// Generic over witness type W
-    public entry fun seal_approve_tee<W: drop>(
+    public fun seal_approve_tee<W: drop>(
         id: vector<u8>,
         vault: &VaultEntry,
         enclave: &Enclave<W>,
@@ -256,7 +247,7 @@ module mist_protocol::seal_policy {
     /// Combined seal_approve (user OR TEE)
     /// Kept for backwards compatibility
     /// Generic over witness type W
-    public entry fun seal_approve<W: drop>(
+    public fun seal_approve<W: drop>(
         id: vector<u8>,
         vault: &VaultEntry,
         enclave: &Enclave<W>,
