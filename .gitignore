@@ -2,6 +2,8 @@
 .env
 .env.local
 .env.*.local
+.env.production
+.env.test
 .mcp.json
 
 # Frontend (Node.js)
@@ -13,6 +15,10 @@ dist/
 *.tsbuildinfo
 .npm/
 .pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
 # Backend (Rust)
 backend/target/
@@ -36,13 +42,18 @@ nautilus/**/target/
 nautilus/**/.move/
 nautilus/**/build/
 
+# Rust
+target/
+Cargo.lock
+*.rs.bk
+*.pdb
+
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-.DS_Store
 
 # Logs
 *.log
@@ -52,7 +63,12 @@ logs/
 .DS_Store
 Thumbs.db
 
+# Testing
+coverage/
+.nyc_output/
+
 # Temporary files
 *.tmp
 *.temp
+*.bak
 .cache/
