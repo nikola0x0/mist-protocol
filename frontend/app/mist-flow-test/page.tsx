@@ -28,6 +28,7 @@ export default function MistFlowTestPage() {
   // Configuration
   const packageId = process.env.NEXT_PUBLIC_PACKAGE_ID!;
   const poolId = process.env.NEXT_PUBLIC_POOL_ID!;
+  const queueId = process.env.NEXT_PUBLIC_INTENT_QUEUE_ID!;
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 
   // State
@@ -55,6 +56,7 @@ export default function MistFlowTestPage() {
     deadline: Math.floor(Date.now() / 1000) + 3600,
   });
   const [swapResult, setSwapResult] = useState<any>(null);
+  const [pendingIntents, setPendingIntents] = useState<any[]>([]);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -339,6 +341,11 @@ export default function MistFlowTestPage() {
 
           addLog(`  🔍 Raw ticket field: ${JSON.stringify(ticketField.data?.content)?.substring(0, 100)}...`);
 
+          if (!ticketField.data) {
+            addLog(`  ⚠️ Ticket #${i} not found (may be locked in pending swap intent)`);
+            continue;
+          }
+
           if (ticketField.data?.content?.dataType === "moveObject") {
             const ticketFields = ticketField.data.content.fields as any;
 
@@ -365,7 +372,7 @@ export default function MistFlowTestPage() {
             addLog(`  ✅ Loaded Ticket #${i} (${tokenType})`);
           }
         } catch (err: any) {
-          addLog(`  ⚠️ Ticket #${i} error: ${err.message}`);
+          addLog(`  ⚠️ Ticket #${i} not found (may be locked in swap intent)`);
         }
       }
 
@@ -639,8 +646,95 @@ export default function MistFlowTestPage() {
   };
 
   // ============================================================================
-  // PHASE 3: SWAP - Encrypt Intent & Send to TEE
+  // PHASE 3: SWAP - Query & Create Intents
   // ============================================================================
+
+  const loadPendingIntents = async () => {
+    if (!vaultId) {
+      addLog("❌ Please select a vault first");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      addLog("🔍 Loading pending swap intents...");
+
+      // Get IntentQueue object
+      const queueObj = await suiClient.getObject({
+        id: queueId,
+        options: { showContent: true },
+      });
+
+      if (queueObj.data?.content?.dataType !== "moveObject") {
+        addLog("❌ Invalid queue object");
+        return;
+      }
+
+      const queueFields = queueObj.data.content.fields as any;
+      const pendingTable = queueFields.pending;
+      const pendingSize = parseInt(pendingTable.fields.size);
+
+      addLog(`📋 Total pending intents in queue: ${pendingSize}`);
+
+      if (pendingSize === 0) {
+        addLog("📭 No pending intents");
+        setPendingIntents([]);
+        return;
+      }
+
+      // Get all pending intent IDs from the table
+      const dynamicFields = await suiClient.getDynamicFields({
+        parentId: pendingTable.fields.id.id,
+      });
+
+      addLog(`🔍 Querying ${dynamicFields.data.length} pending intents...`);
+
+      // Load each intent object
+      const intents = [];
+      for (const field of dynamicFields.data) {
+        try {
+          const intentId = field.name.value as string;
+
+          // Get the SwapIntent object
+          const intentObj = await suiClient.getObject({
+            id: intentId,
+            options: { showContent: true },
+          });
+
+          if (intentObj.data?.content?.dataType === "moveObject") {
+            const intentFields = intentObj.data.content.fields as any;
+
+            // Check if this intent belongs to current vault
+            if (intentFields.vault_id === vaultId) {
+              const lockedTicketsSize = parseInt(intentFields.locked_tickets.fields.size);
+
+              intents.push({
+                id: intentId,
+                vaultId: intentFields.vault_id,
+                tokenOut: intentFields.token_out,
+                minOutput: intentFields.min_output_amount,
+                deadline: new Date(parseInt(intentFields.deadline) * 1000).toLocaleString(),
+                user: intentFields.user,
+                lockedTicketsCount: lockedTicketsSize,
+                txUrl: `https://testnet.suivision.xyz/object/${intentId}`,
+              });
+
+              addLog(`  ✅ Intent: ${lockedTicketsSize} ticket(s) → ${intentFields.token_out}`);
+            }
+          }
+        } catch (err: any) {
+          addLog(`  ⚠️ Failed to load intent: ${err.message}`);
+        }
+      }
+
+      setPendingIntents(intents);
+      addLog(`✅ Found ${intents.length} pending intent(s) for this vault`);
+    } catch (error: any) {
+      addLog(`❌ Failed to load intents: ${error.message || error}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCreateSwapIntent = async () => {
     if (!vaultId || !account) {
@@ -668,7 +762,8 @@ export default function MistFlowTestPage() {
       tx.moveCall({
         target: `${packageId}::mist_protocol::create_swap_intent`,
         arguments: [
-          tx.object(vaultId),
+          tx.object(queueId),  // IntentQueue
+          tx.object(vaultId),  // VaultEntry
           tx.pure.vector("u64", selectedTicketIds),
           tx.pure.string(swapConfig.tokenOut),
           tx.pure.u64(parseInt(swapConfig.minOutput)),
@@ -922,8 +1017,51 @@ export default function MistFlowTestPage() {
               <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
                 <h2 className="text-2xl font-bold mb-4">🔄 Phase 3: Privacy-Preserving Swap</h2>
                 <div className="space-y-4">
+                  {/* Load Pending Intents */}
+                  <button
+                    onClick={loadPendingIntents}
+                    disabled={loading || !vaultId}
+                    className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-gray-700 px-6 py-3 rounded-lg font-medium"
+                  >
+                    {loading ? "Loading..." : "🔍 Load Pending Swap Intents"}
+                  </button>
+
+                  {/* Show Pending Intents */}
+                  {pendingIntents.length > 0 && (
+                    <div className="bg-gray-900 rounded p-4">
+                      <h3 className="font-medium mb-3">⏳ Pending Intents ({pendingIntents.length})</h3>
+                      <div className="space-y-2">
+                        {pendingIntents.map((intent) => (
+                          <div key={intent.id} className="bg-gray-800 rounded p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <span className="font-medium">🔒 {intent.lockedTicketsCount} ticket(s) locked</span>
+                                <span className="text-gray-400 ml-2">→ {intent.tokenOut}</span>
+                              </div>
+                              <a
+                                href={intent.txUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-400 hover:text-blue-300 text-sm"
+                              >
+                                View →
+                              </a>
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              <p>Min Output: {intent.minOutput}</p>
+                              <p>Deadline: {intent.deadline}</p>
+                              <p className="text-yellow-400 mt-1">⏳ Waiting for backend to process...</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Ticket Selection */}
-                  <div>
+                  <div className="border-t border-gray-700 pt-4">
+                    <p className="text-sm text-gray-400 mb-2">Create new swap intent:</p>
+                    <div>
                     <label className="block text-sm font-medium mb-2">Select Tickets to Swap</label>
                     <div className="space-y-2 bg-gray-900 rounded p-3">
                       {tickets.length === 0 ? (
@@ -989,6 +1127,7 @@ export default function MistFlowTestPage() {
                       <li>Only TEE can decrypt via seal_approve_tee</li>
                       <li>Swap amounts never revealed publicly</li>
                     </ul>
+                  </div>
                   </div>
 
                   <button

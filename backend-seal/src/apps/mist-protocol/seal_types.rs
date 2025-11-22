@@ -58,6 +58,7 @@ pub struct SealConfig {
     pub key_servers: Vec<ObjectID>,
     pub public_keys: Vec<IBEPublicKey>,
     pub package_id: ObjectID,
+    pub intent_queue_id: ObjectID,
     pub server_pk_map: HashMap<ObjectID, IBEPublicKey>,
 }
 
@@ -69,6 +70,8 @@ struct SealConfigRaw {
     public_keys: Vec<IBEPublicKey>,
     #[serde(deserialize_with = "deserialize_object_id")]
     package_id: ObjectID,
+    #[serde(deserialize_with = "deserialize_object_id")]
+    intent_queue_id: ObjectID,
 }
 
 impl TryFrom<SealConfigRaw> for SealConfig {
@@ -94,6 +97,7 @@ impl TryFrom<SealConfigRaw> for SealConfig {
             key_servers: raw.key_servers,
             public_keys: raw.public_keys,
             package_id: raw.package_id,
+            intent_queue_id: raw.intent_queue_id,
             server_pk_map,
         })
     }

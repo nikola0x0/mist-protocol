@@ -13,6 +13,10 @@ use std::sync::Arc;
 // SEAL test endpoints for encryption/decryption testing
 pub mod seal_test;
 
+// Intent processor for polling and decrypting swap intents
+#[cfg(feature = "mist-protocol")]
+pub mod intent_processor;
+
 /// ====
 /// Mist Protocol: Privacy-preserving swap intent processing
 /// ====
@@ -126,31 +130,6 @@ pub async fn process_data(
     )))
 }
 
-/// Mock Seal decryption (for testing without real Seal servers)
-fn decrypt_with_seal_mock(
-    encrypted_data: &str,
-    _key_id: &str,
-) -> Result<SwapIntent, EnclaveError> {
-    tracing::info!("🎭 Mock Seal decryption");
-
-    // For testing: Try to parse as JSON if it looks like JSON, otherwise use default
-    if encrypted_data.starts_with("{") {
-        serde_json::from_str(encrypted_data)
-            .map_err(|e| EnclaveError::GenericError(format!("Failed to parse intent: {}", e)))
-    } else {
-        // Return default test intent
-        Ok(SwapIntent {
-            ticket_ids: vec![0], // Use ticket ID 0 for testing
-            token_out: "SUI".to_string(),
-            amount: 100_000_000, // 100 USDC (6 decimals)
-            min_output: 100_000_000_000, // 100 SUI (9 decimals)
-            deadline: (std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() + 3600) as u64, // 1 hour from now
-        })
-    }
-}
 
 /// Validate swap intent
 fn validate_intent(intent: &SwapIntent) -> Result<(), EnclaveError> {

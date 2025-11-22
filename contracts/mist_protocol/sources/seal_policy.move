@@ -30,6 +30,10 @@ module mist_protocol::seal_policy {
         owner: address,
     }
 
+    /// The trusted backend wallet address (Nautilus TEE)
+    /// This address can decrypt tickets to execute swaps
+    const BACKEND_ADDRESS: address = @0x9bf64712c379154caeca62619795dbc0c839f3299518450796598a68407c2ff0;
+
     /// Vault entry - container for user's encrypted ticket balances
     /// Shared object that both user and TEE can reference
     public struct VaultEntry has key {
@@ -215,9 +219,11 @@ module mist_protocol::seal_policy {
         // Verify namespace matches
         assert!(has_valid_namespace(id, vault), EInvalidNamespace);
 
-        // Only vault owner can decrypt
+        // Only vault owner OR backend can decrypt
+        let sender = ctx.sender();
         assert!(
-            ctx.sender().to_bytes() == vault.owner.to_bytes(),
+            sender.to_bytes() == vault.owner.to_bytes() ||
+            sender.to_bytes() == BACKEND_ADDRESS.to_bytes(),
             ENoAccess
         );
     }
