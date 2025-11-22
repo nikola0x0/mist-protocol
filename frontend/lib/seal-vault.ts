@@ -15,6 +15,19 @@ import { SuiClient } from "@mysten/sui/client";
 import { Transaction } from "@mysten/sui/transactions";
 import { fromHex, toHex } from "@mysten/sui/utils";
 
+/**
+ * Helper: Extract pure hex address from potential type identifier
+ * Sui object types can be "0xABC::module::Type" but we need just "0xABC"
+ */
+function sanitizeHexId(input: string): string {
+  if (!input) return input;
+  // If it contains ::, it's a type identifier - extract the address part
+  if (input.includes("::")) {
+    return input.split("::")[0];
+  }
+  return input;
+}
+
 export interface SealVaultConfig {
   packageId: string;
   vaultObjectId: string;
@@ -38,7 +51,10 @@ export async function encryptVaultBalance(
   // Step 1: Generate encryption ID (vault namespace + nonce)
   // This follows the pattern: [vault_id][nonce]
   const nonce = crypto.getRandomValues(new Uint8Array(5));
-  const vaultBytes = fromHex(config.vaultObjectId);
+
+  // CRITICAL: Sanitize vaultObjectId to ensure it's pure hex (not a type identifier)
+  const cleanVaultId = sanitizeHexId(config.vaultObjectId);
+  const vaultBytes = fromHex(cleanVaultId);
   const encryptionId = toHex(new Uint8Array([...vaultBytes, ...nonce]));
 
   console.log("🔐 Encrypting balance:", {
@@ -147,7 +163,10 @@ export async function decryptVaultBalance(
 
   // Step 4: Parse encryption ID from encrypted object
   const parsed = EncryptedObject.parse(encryptedBalance);
-  const encryptionId = parsed.id;
+  const rawEncryptionId = parsed.id;
+
+  // CRITICAL: Sanitize encryptionId (might contain type info from parsing)
+  const encryptionId = sanitizeHexId(rawEncryptionId);
 
   console.log("   Encryption ID:", encryptionId.substring(0, 20) + "...");
 
@@ -157,18 +176,29 @@ export async function decryptVaultBalance(
     target: `${config.packageId}::seal_policy::seal_approve`,
     arguments: [
       tx.pure.vector("u8", Array.from(fromHex(encryptionId))),
-      tx.object(config.vaultObjectId),
-      tx.object(config.enclaveObjectId),
+      tx.object(sanitizeHexId(config.vaultObjectId)),
+      tx.object(sanitizeHexId(config.enclaveObjectId)),
     ],
   });
 
-  // Step 6: Sign and get transaction bytes
-  const signedTx = await sessionKey.signTransaction(tx);
+  // Step 6: Build transaction bytes
+  // IMPORTANT: Use onlyTransactionKind: true to avoid needing a sender
+  const txBytes = await tx.build({
+    client: suiClient,
+    onlyTransactionKind: true,
+  });
 
-  // Step 7: Call SEAL key servers to decrypt
+  // Step 7: Serialize encrypted balance back to bytes for decrypt API
+  const encryptedBytes =
+    typeof encryptedBalance === "string"
+      ? EncryptedObject.serialize(parsed).toBytes()
+      : encryptedBalance;
+
+  // Step 8: Call SEAL key servers to decrypt (new API)
   const decrypted = await sealClient.decrypt({
-    encryptedObject: encryptedBalance,
-    signedTransaction: signedTx,
+    data: encryptedBytes, // Pass full encrypted object as bytes
+    sessionKey: sessionKey,
+    txBytes: txBytes,
   });
 
   // Step 8: Decode plaintext
