@@ -11,6 +11,17 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        card: "var(--card)",
+        "card-hover": "var(--card-hover)",
+        border: "var(--border)",
+        "glass-border": "var(--glass-border)",
+      },
+      fontFamily: {
+        tektur: ["var(--font-tektur)"],
+        "anonymous-pro": ["var(--font-anonymous-pro)"],
+      },
+      backdropBlur: {
+        xs: "2px",
       },
     },
   },

@@ -11,6 +11,12 @@ import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
 import { SealClient, SessionKey, EncryptedObject } from "@mysten/seal";
 import { fromHex, toHex } from "@mysten/sui/utils";
 
+// Token icons
+const TOKEN_ICONS = {
+  SUI: "https://s2.coinmarketcap.com/static/img/coins/64x64/20947.png",
+  USDC: "https://s2.coinmarketcap.com/static/img/coins/64x64/3408.png",
+};
+
 // Types for our ticket vault system
 interface Ticket {
   ticket_id: number;
@@ -640,12 +646,10 @@ export function UnwrapCard() {
                 >
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                      <div
-                        className={`w-4 h-4 rounded-full ${
-                          ticket.token_type === "SUI"
-                            ? "bg-blue-600"
-                            : "bg-green-600"
-                        }`}
+                      <img
+                        src={TOKEN_ICONS[ticket.token_type]}
+                        alt={ticket.token_type}
+                        className="w-5 h-5"
                       />
                       <span className="font-medium">
                         Ticket #{ticket.ticket_id}
@@ -681,15 +685,16 @@ export function UnwrapCard() {
             <span className="text-sm text-gray-400">
               Ticket #{selectedTicket.ticket_id}
             </span>
-            <span
-              className={`px-2 py-1 rounded text-xs font-medium ${
-                selectedTicket.token_type === "SUI"
-                  ? "bg-blue-600/20 text-blue-400"
-                  : "bg-green-600/20 text-green-400"
-              }`}
-            >
-              {selectedTicket.token_type}
-            </span>
+            <div className="flex items-center gap-2 px-2 py-1 bg-white/5 border border-white/10">
+              <img
+                src={TOKEN_ICONS[selectedTicket.token_type]}
+                alt={selectedTicket.token_type}
+                className="w-4 h-4"
+              />
+              <span className="text-xs font-medium text-gray-300">
+                {selectedTicket.token_type}
+              </span>
+            </div>
           </div>
           <div className="text-sm text-gray-500 mb-1">
             Decrypted Amount: {displayAmount()} {selectedTicket.token_type}
@@ -711,8 +716,15 @@ export function UnwrapCard() {
           decryptedAmount === "DECRYPT_NEEDED" ||
           decryptedAmount === "DECRYPTION_FAILED"
         }
-        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-800 disabled:text-gray-600 text-white font-medium py-4 rounded-lg transition"
+        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-800 disabled:text-gray-600 text-white font-medium py-4 rounded-lg transition flex items-center justify-center gap-2"
       >
+        {selectedTicket && (
+          <img
+            src={TOKEN_ICONS[selectedTicket.token_type]}
+            alt={selectedTicket.token_type}
+            className="w-5 h-5"
+          />
+        )}
         {loading ? "Unwrapping..." : `Unwrap ${selectedTicket?.token_type || "Tokens"}`}
       </button>
 

@@ -3,19 +3,20 @@
 @tailwind utilities;
 
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --card: #141414;
-  --card-hover: #1a1a1a;
-  --border: #262626;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: rgba(255, 255, 255, 0.03);
+  --card-hover: rgba(255, 255, 255, 0.05);
+  --border: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.15);
+  --glow-primary: rgba(255, 255, 255, 0.1);
+  --glow-secondary: rgba(255, 255, 255, 0.05);
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-anonymous-pro), "Courier New", monospace;
 }
 
 /* Custom scrollbar */
@@ -29,33 +30,47 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #404040;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 0;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #525252;
+  background: rgba(255, 255, 255, 0.3);
 }
 
-/* Card styles */
+/* Glassmorphism Card styles */
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  transition: all 0.2s ease;
+  border-radius: 0;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
 }
 
 .card:hover {
   background: var(--card-hover);
-  border-color: #333;
+  border-color: var(--glass-border);
 }
 
-/* Input styles */
-input[type="number"],
-input[type="text"] {
-  -moz-appearance: textfield;
+/* Glass button */
+.glass-button {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  font-family: var(--font-tektur), sans-serif;
 }
 
+.glass-button:hover {
+  background: var(--card-hover);
+  border-color: var(--glass-border);
+  box-shadow: 0 0 20px var(--glow-primary);
+}
+
+/* Input styles - only for components, not for mist-flow-test */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -64,31 +79,57 @@ input[type="number"]::-webkit-inner-spin-button {
 
 /* Button animations */
 button {
-  transition: all 0.15s ease;
+  transition: all 0.3s ease;
 }
 
 button:active {
   transform: scale(0.98);
 }
 
-/* Gradient text */
+/* Gradient text with glow */
 .gradient-text {
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    rgba(255, 255, 255, 0.7) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  text-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
+  font-family: var(--font-tektur), sans-serif;
 }
 
 /* Glowing effect */
 .glow {
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 30px var(--glow-primary), 0 0 60px var(--glow-secondary);
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px var(--glow-primary), 0 0 40px var(--glow-secondary);
+  }
+  50% {
+    box-shadow: 0 0 30px var(--glow-primary), 0 0 60px var(--glow-secondary);
+  }
+}
+
+/* Radial gradient background */
+.radial-gradient-bg {
+  background: radial-gradient(
+    circle at 50% 30%,
+    rgba(255, 255, 255, 0.05) 0%,
+    transparent 50%
+  );
 }
 
 /* Animations */
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
@@ -97,5 +138,109 @@ button:active {
 }
 
 .animate-slide-up {
-  animation: slideUp 0.3s ease-out;
+  animation: slideUp 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.8s ease-out;
+}
+
+/* Hover Card Effect - Hyperplexed Style Adapted for Mist - Landing Page Only */
+.card-track {
+  height: 100%;
+  width: 480px;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.card-wrapper {
+  width: 100%;
+  position: relative;
+}
+
+.card-track .card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  position: relative;
+  margin: 1rem;
+  border-radius: 0;
+  overflow: visible;
+  cursor: pointer;
+  border: none;
+  background: transparent !important;
+}
+
+.card-track .card:hover {
+  background: transparent !important;
+}
+
+.card-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 4;
+}
+
+.card-gradient {
+  display: none;
+}
+
+.card-letters {
+  --x: 0px;
+  --y: 0px;
+  position: absolute;
+  left: -100px;
+  top: -100px;
+  right: -100px;
+  bottom: -100px;
+  color: rgba(200, 200, 200, 0.4);
+  font-size: 0.8rem;
+  font-weight: 500;
+  word-wrap: break-word;
+  opacity: 0;
+  transition: opacity 400ms;
+  -webkit-mask-image: radial-gradient(
+    300px circle at var(--x) var(--y),
+    rgb(255 255 255) 10%,
+    rgb(255 255 255 / 40%) 25%,
+    rgb(255 255 255 / 15%) 40%,
+    transparent 60%
+  );
+  mask-image: radial-gradient(
+    300px circle at var(--x) var(--y),
+    rgb(255 255 255) 10%,
+    rgb(255 255 255 / 40%) 25%,
+    rgb(255 255 255 / 15%) 40%,
+    transparent 60%
+  );
+  scale: 4;
+  font-family: var(--font-anonymous-pro), "Courier New", monospace;
+  padding: 100px;
+}
+
+.card-track .card:hover .card-letters {
+  opacity: 1;
+}
+
+.card-corners {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .card-track {
+    width: 340px;
+  }
 }
