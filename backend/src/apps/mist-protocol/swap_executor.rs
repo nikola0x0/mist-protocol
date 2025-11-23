@@ -66,7 +66,7 @@ pub async fn execute_swap_mock(
     let vault_id = ObjectID::from_hex_literal(&decrypted.vault_id)?;
 
     // Get pool ID from config
-    let pool_id_str = std::fs::read_to_string("/Users/nikola/Developer/hackathon/mist-protocol/backend-seal/src/apps/mist-protocol/seal_config.yaml")?;
+    let pool_id_str = std::fs::read_to_string("/Users/nikola/Developer/hackathon/mist-protocol/backend/src/apps/mist-protocol/seal_config.yaml")?;
     let pool_id_line = pool_id_str.lines()
         .find(|l| l.contains("liquidity_pool_id"))
         .ok_or_else(|| anyhow::anyhow!("liquidity_pool_id not found"))?;

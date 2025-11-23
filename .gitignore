@@ -25,13 +25,14 @@ backend/target/
 backend/Cargo.lock
 backend/**/*.rs.bk
 
-backend-seal/target/
-backend-seal/Cargo.lock
-backend-seal/**/*.rs.bk
+# Signing service
+tx-signer/target/
+tx-signer/Cargo.lock
+tx-signer/**/*.rs.bk
 
-backend-cetus/target/
-backend-cetus/Cargo.lock
-backend-cetus/**/*.rs.bk
+# Cetus swap integration (future)
+cetus-swap/backend/target/
+cetus-swap/backend/Cargo.lock
 
 # Contracts (Move)
 contracts/**/build/

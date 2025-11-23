@@ -116,7 +116,7 @@ cd tx-signer
 cargo run
 
 # Terminal 2: Start backend
-cd backend-seal
+cd backend
 cargo run --features mist-protocol
 
 # The backend will automatically call the signing service when needed
