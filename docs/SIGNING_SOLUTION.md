@@ -1,5 +1,21 @@
 # Transaction Signing Solution for SEAL-Enabled Backends
 
+## TL;DR
+
+**Problem:** SEAL SDK and sui-sdk use incompatible fastcrypto versions, preventing transaction signing in the same binary.
+
+**Solution:** Run a separate signing service (no SEAL dependency) that the backend calls via HTTP.
+
+**Why It Works:**
+- Backend does all SEAL encryption/decryption ✅
+- Backend builds unsigned transaction with encrypted data ✅
+- Signing service ONLY signs raw transaction bytes (no SEAL needed) ✅
+- Backend executes signed transaction ✅
+
+**Time to Implement:** ~50 minutes
+
+---
+
 ## Problem Statement
 
 ### The Conflict
@@ -253,8 +269,14 @@ cargo run --features mist-protocol
 - ✅ Can scale independently
 
 **Cons:**
-- ❌ Extra HTTP hop (~1-2ms latency)
+- ❌ Extra HTTP hop (~1-2ms latency, negligible)
 - ❌ Two services to deploy
+
+**Why This Works:**
+- ✅ Backend keeps SEAL SDK for decrypt/encrypt
+- ✅ Signing service has NO SEAL dependency
+- ✅ No version conflict because they're separate binaries!
+- ✅ Backend encrypts BEFORE calling signing service
 
 **Effort:** ~30-45 minutes
 
