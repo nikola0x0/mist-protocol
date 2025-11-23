@@ -10,33 +10,12 @@ use serde_json::json;
 use std::fmt;
 
 mod apps {
-    #[cfg(feature = "twitter-example")]
-    #[path = "twitter-example/mod.rs"]
-    pub mod twitter_example;
-
-    #[cfg(feature = "weather-example")]
-    #[path = "weather-example/mod.rs"]
-    pub mod weather_example;
-
-    #[cfg(feature = "seal-example")]
-    #[path = "seal-example/mod.rs"]
-    pub mod seal_example;
-
     #[cfg(feature = "mist-protocol")]
     #[path = "mist-protocol/mod.rs"]
     pub mod mist_protocol;
 }
 
 pub mod app {
-    #[cfg(feature = "twitter-example")]
-    pub use crate::apps::twitter_example::*;
-
-    #[cfg(feature = "weather-example")]
-    pub use crate::apps::weather_example::*;
-
-    #[cfg(feature = "seal-example")]
-    pub use crate::apps::seal_example::*;
-
     #[cfg(feature = "mist-protocol")]
     pub use crate::apps::mist_protocol::*;
 }

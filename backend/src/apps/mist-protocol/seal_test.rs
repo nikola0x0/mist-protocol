@@ -218,7 +218,7 @@ mod tests {
 
     #[test]
     fn test_mock_round_trip() {
-        let amount = "100000000"; 
+        let amount = "100000000"; // 100 SUI
         let encrypted = mock_encrypt(amount).unwrap();
         let decrypted = mock_decrypt(&encrypted).unwrap();
 
