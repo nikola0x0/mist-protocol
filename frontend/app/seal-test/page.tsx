@@ -544,10 +544,10 @@ export default function SealTestPage() {
                 <div className="font-bold text-blue-400">How to Test:</div>
                 <ol className="list-decimal list-inside space-y-1 text-gray-400">
                   <li>Connect your Sui wallet</li>
-                  <li>Click "Create Vault"</li>
+                  <li>Click &quot;Create Vault&quot;</li>
                   <li>Enter amount to encrypt</li>
-                  <li>Click "Encrypt with SEAL"</li>
-                  <li>Click "Decrypt with SEAL" (sign once, valid 10 min)</li>
+                  <li>Click &quot;Encrypt with SEAL&quot;</li>
+                  <li>Click &quot;Decrypt with SEAL&quot; (sign once, valid 10 min)</li>
                   <li>Verify decrypted amount matches!</li>
                 </ol>
                 <div className="pt-2 border-t border-blue-800/30 mt-3">

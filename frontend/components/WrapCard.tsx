@@ -78,7 +78,7 @@ export function WrapCard() {
       </button>
 
       <div className="mt-4 text-xs text-gray-500 text-center">
-        ℹ️ You'll receive e{token} tokens with encrypted balance
+        ℹ️ You&apos;ll receive e{token} tokens with encrypted balance
       </div>
     </div>
   );

@@ -610,7 +610,7 @@ export function UnwrapCard() {
             <div className="text-4xl mb-3">🗄️</div>
             <h4 className="font-medium text-lg mb-2">No Vaults Found</h4>
             <p className="text-sm mb-4">
-              You don't have any vaults with tickets yet
+              You don&apos;t have any vaults with tickets yet
             </p>
           </div>
           <div className="space-y-2 text-sm text-gray-600">
@@ -732,7 +732,7 @@ export function UnwrapCard() {
       {selectedTicket && (
         <div className="mt-4 text-xs text-gray-500 text-center space-y-1">
           <p>ℹ️ Ticket #{selectedTicket.ticket_id} will be burned</p>
-          <p>You'll receive {displayAmount()} {selectedTicket.token_type} in your wallet</p>
+          <p>You&apos;ll receive {displayAmount()} {selectedTicket.token_type} in your wallet</p>
           <p className="text-yellow-500">⚠️ Partial unwrap is future work (requires SEAL re-encryption)</p>
         </div>
       )}
