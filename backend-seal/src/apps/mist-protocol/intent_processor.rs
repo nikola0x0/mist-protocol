@@ -117,8 +117,19 @@ pub async fn start_intent_processor(state: Arc<AppState>) {
                                 println!("   🏦 Vault: {}", decrypted.vault_id);
                                 println!("   ⏰ Deadline: {}\n", decrypted.deadline);
 
-                                // TODO: Next step - call Cetus integration
-                                // TODO: Then call execute_swap on-chain
+                                // Step 3: Execute swap (mock for testing - skip Cetus)
+                                // For testing: SUI -> SUI with same amount
+                                println!("🔄 Executing mock swap (SUI -> SUI, skipping Cetus for testing)...");
+
+                                match super::swap_executor::execute_swap_mock(&decrypted, &sui_client, &state).await {
+                                    Ok(digest) => {
+                                        println!("✅ Swap executed successfully!");
+                                        println!("   📝 Transaction: {}\n", digest);
+                                    }
+                                    Err(e) => {
+                                        println!("❌ Failed to execute swap: {}\n", e);
+                                    }
+                                }
                             }
                             Err(e) => {
                                 println!("❌ Failed to process intent {}: {}\n", intent_id, e);
@@ -845,6 +856,9 @@ async fn decrypt_ticket_amount(
     Ok(amount)
 }
 
+// Note: execute_swap_mock has been moved to swap_executor.rs module
+// Note: encrypt_amount_with_seal has been moved to seal_encryption.rs module
+// These are in separate modules to avoid fastcrypto version conflicts
 #[cfg(test)]
 mod tests {
     use super::*;

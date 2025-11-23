@@ -414,15 +414,17 @@ entry fun refund_intent(
 
 // ============ TEE SWAP EXECUTION ============
 /// TEE executes swap and consumes locked tickets from intent
-entry fun execute_swap(
+/// Execute swap - TEE deposits swapped tokens and creates output ticket
+/// This function is called by the backend after performing Cetus swap
+entry fun execute_swap_sui(
     queue: &mut IntentQueue,
     intent: SwapIntent,
     vault: &mut VaultEntry,
-    pool: &LiquidityPool,
+    pool: &mut LiquidityPool,
+    output_coin: Coin<SUI>,  // TEE provides swapped SUI
     ticket_ids_consumed: vector<u64>,
     new_ticket_encrypted: vector<u8>,
     from_amount: u64,
-    to_amount: u64,
     ctx: &mut TxContext,
 ) {
     // Only TEE can call
@@ -436,6 +438,105 @@ entry fun execute_swap(
 
     // Verify this is the correct vault
     assert!(object::id(vault) == intent.vault_id, E_NOT_OWNER);
+
+    // Get actual output amount from coin
+    let to_amount = coin::value(&output_coin);
+
+    // Deposit swapped SUI into pool
+    balance::join(&mut pool.sui_balance, coin::into_balance(output_coin));
+
+    // Get vault owner and next ticket ID
+    let vault_owner = seal_policy::owner(vault);
+    let new_ticket_id = seal_policy::next_ticket_id(vault);
+
+    // Unpack intent to access locked tickets
+    let SwapIntent {
+        id,
+        vault_id: _,
+        mut locked_tickets,
+        token_out,
+        min_output_amount: _,
+        deadline: _,
+        user: _,
+    } = intent;
+
+    // Get token type from first locked ticket
+    let first_ticket_id = *ticket_ids_consumed.borrow(0);
+    assert!(locked_tickets.contains<u64>(first_ticket_id), E_TICKET_NOT_FOUND);
+    let first_ticket = locked_tickets.borrow<u64, seal_policy::EncryptedTicket>(first_ticket_id);
+    let token_in = seal_policy::token_type(first_ticket);
+
+    // Remove and destroy consumed tickets from locked_tickets
+    let mut i = 0;
+    while (i < ticket_ids_consumed.length()) {
+        let ticket_id = *ticket_ids_consumed.borrow(i);
+        assert!(locked_tickets.contains<u64>(ticket_id), E_TICKET_NOT_FOUND);
+        let ticket = locked_tickets.remove<u64, seal_policy::EncryptedTicket>(ticket_id);
+        seal_policy::destroy_ticket(ticket);
+        i = i + 1;
+    };
+
+    // Destroy empty locked_tickets bag
+    object_bag::destroy_empty(locked_tickets);
+
+    // Create new output ticket in vault
+    let vault_tickets = seal_policy::tickets_mut(vault);
+    let new_ticket = seal_policy::new_ticket(
+        new_ticket_id,
+        token_out,
+        new_ticket_encrypted,
+        ctx,
+    );
+
+    vault_tickets.add<u64, seal_policy::EncryptedTicket>(new_ticket_id, new_ticket);
+    seal_policy::increment_ticket_id(vault);
+
+    // Remove from pending queue
+    queue.pending.remove(intent_id);
+
+    // Delete intent object
+    object::delete(id);
+
+    // Emit event for transparency
+    event::emit(SwapExecutedEvent {
+        user: vault_owner,
+        from_token: token_in.into_bytes(),
+        to_token: token_out.into_bytes(),
+        from_amount,
+        to_amount,
+        timestamp: tx_context::epoch(ctx),
+    });
+}
+
+/// Execute swap with USDC output - TEE deposits swapped USDC and creates output ticket
+entry fun execute_swap_usdc(
+    queue: &mut IntentQueue,
+    intent: SwapIntent,
+    vault: &mut VaultEntry,
+    pool: &mut LiquidityPool,
+    output_coin: Coin<USDC>,  // TEE provides swapped USDC
+    ticket_ids_consumed: vector<u64>,
+    new_ticket_encrypted: vector<u8>,
+    from_amount: u64,
+    ctx: &mut TxContext,
+) {
+    // Only TEE can call
+    assert!(tx_context::sender(ctx) == pool.tee_authority, E_NOT_AUTHORIZED);
+    assert!(!pool.paused, E_PAUSED);
+
+    let intent_id = object::id(&intent);
+
+    // Verify intent exists in queue
+    assert!(queue.pending.contains(intent_id), E_INTENT_NOT_FOUND);
+
+    // Verify this is the correct vault
+    assert!(object::id(vault) == intent.vault_id, E_NOT_OWNER);
+
+    // Get actual output amount from coin
+    let to_amount = coin::value(&output_coin);
+
+    // Deposit swapped USDC into pool
+    balance::join(&mut pool.usdc_balance, coin::into_balance(output_coin));
 
     // Get vault owner and next ticket ID
     let vault_owner = seal_policy::owner(vault);

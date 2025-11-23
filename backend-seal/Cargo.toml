@@ -37,10 +37,13 @@ bech32 = "0.9"
 sui-sdk-types = { git = "https://github.com/mystenlabs/sui-rust-sdk", features = ["serde"], rev = "86a9e06", optional = true }
 sui-crypto = { git = "https://github.com/mystenlabs/sui-rust-sdk", features = ["ed25519"], rev = "86a9e06", optional = true }
 sui-sdk = { git = "https://github.com/mystenlabs/sui", package = "sui-sdk", optional = true }
+sui-types = { git = "https://github.com/mystenlabs/sui", package = "sui-types", optional = true }
+shared-crypto = { git = "https://github.com/mystenlabs/sui", package = "shared-crypto", optional = true }
 seal-sdk = { git = "https://github.com/MystenLabs/seal", rev = "608d30caba1d1fbf5f1d82e5a8e6280010fd3609", package = "seal-sdk", optional = true }
+crypto = { git = "https://github.com/MystenLabs/seal", rev = "608d30caba1d1fbf5f1d82e5a8e6280010fd3609", package = "crypto", optional = true }
 
 [features]
 weather-example = []
 twitter-example = ["regex"]
-seal-example = ["sui-crypto", "sui-sdk-types", "seal-sdk"]
-mist-protocol = ["sui-crypto", "sui-sdk-types", "sui-sdk", "seal-sdk"]
+seal-example = ["sui-crypto", "sui-sdk-types", "seal-sdk", "crypto"]
+mist-protocol = ["sui-crypto", "sui-sdk-types", "sui-sdk", "sui-types", "shared-crypto", "seal-sdk", "crypto"]

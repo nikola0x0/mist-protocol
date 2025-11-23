@@ -17,6 +17,14 @@ pub mod seal_test;
 #[cfg(feature = "mist-protocol")]
 pub mod intent_processor;
 
+// SEAL encryption helper (separate module to avoid fastcrypto conflicts)
+#[cfg(feature = "mist-protocol")]
+pub mod seal_encryption;
+
+// Swap executor (separate module to use sui-types without SEAL conflicts)
+#[cfg(feature = "mist-protocol")]
+pub mod swap_executor;
+
 /// ====
 /// Mist Protocol: Privacy-preserving swap intent processing
 /// ====
