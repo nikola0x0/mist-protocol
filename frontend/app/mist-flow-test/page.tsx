@@ -892,7 +892,7 @@ export default function MistFlowTestPage() {
 
                   {/* Create New Vault */}
                   <div className="border-t border-gray-700 pt-4">
-                    <p className="text-sm text-gray-400 mb-2">Don't have a vault?</p>
+                    <p className="text-sm text-gray-400 mb-2">Don&apos;t have a vault?</p>
                     <button
                       onClick={handleCreateVault}
                       disabled={loading || !account}
@@ -960,7 +960,7 @@ export default function MistFlowTestPage() {
                     </ul>
                     <p className="font-medium mt-3 mb-2">🔐 Security Testing:</p>
                     <ul className="list-disc list-inside space-y-1">
-                      <li>Click "Test Decryption" to verify you can decrypt as owner</li>
+                      <li>Click &quot;Test Decryption&quot; to verify you can decrypt as owner</li>
                       <li>Only vault owner can decrypt via seal_approve_user</li>
                       <li>Try from another wallet - it should fail!</li>
                     </ul>
