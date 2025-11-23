@@ -12,7 +12,7 @@
 - Signing service ONLY signs raw transaction bytes (no SEAL needed) ✅
 - Backend executes signed transaction ✅
 
-**Time to Implement:** ~50 minutes
+**Time to Implement:** ~10 minutes (using official `sui keytool sign-server`)
 
 ---
 

@@ -9,15 +9,20 @@ use std::str::FromStr;
 pub fn encrypt_amount(amount: u64, vault_id: &str) -> Result<Vec<u8>> {
     use crypto::{EncryptionInput, IBEPublicKeys};
 
-    // Create encryption ID (vault namespace + random suffix)
+    // Create encryption ID (vault namespace + random nonce, matching frontend pattern)
     let vault_bytes = hex::decode(vault_id.trim_start_matches("0x"))?;
+    let nonce = rand::random::<[u8; 5]>(); // Use 5 bytes like frontend
     let mut encryption_id = vault_bytes.clone();
-    encryption_id.extend_from_slice(b"_output_");
-    encryption_id.extend_from_slice(&rand::random::<[u8; 8]>());
+    encryption_id.extend_from_slice(&nonce);
 
-    // Convert amount to bytes
+    let enc_id_hex = hex::encode(&encryption_id);
+    println!("   🔐 SEAL Encryption ID (full): 0x{}", enc_id_hex);
+    println!("   📊 Encryption ID length: {} bytes (vault: 32, nonce: 5)", encryption_id.len());
+
+    // Convert amount to bytes (as string, like frontend does)
     let amount_str = amount.to_string();
     let plaintext = amount_str.as_bytes().to_vec();
+    println!("   💰 Encrypting amount: {} (as string: '{}')", amount, amount_str);
 
     // Get package ID and key servers from config
     let package_id = ObjectId::from_str(&super::SEAL_CONFIG.package_id.to_string())?;
@@ -36,5 +41,9 @@ pub fn encrypt_amount(amount: u64, vault_id: &str) -> Result<Vec<u8>> {
     .map_err(|e| anyhow::anyhow!("SEAL encryption failed: {:?}", e))?;
 
     // Serialize to bytes
-    Ok(bcs::to_bytes(&encrypted_obj)?)
+    let encrypted_bytes = bcs::to_bytes(&encrypted_obj)?;
+    println!("   ✅ Encrypted successfully! Size: {} bytes", encrypted_bytes.len());
+    println!("");
+
+    Ok(encrypted_bytes)
 }

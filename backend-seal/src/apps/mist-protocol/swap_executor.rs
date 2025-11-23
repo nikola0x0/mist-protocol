@@ -81,6 +81,8 @@ pub async fn execute_swap_mock(
         .await?
         .data.ok_or_else(|| anyhow::anyhow!("Intent not found"))?;
 
+    // println!("   🔍 Intent owner: {:?}", intent_obj.owner);
+
     let vault_obj = sui_client.read_api()
         .get_object_with_options(vault_id, SuiObjectDataOptions::new().with_owner())
         .await?
@@ -100,6 +102,11 @@ pub async fn execute_swap_mock(
     let queue_version = match queue_obj.owner {
         Some(sui_sdk::types::object::Owner::Shared { initial_shared_version }) => initial_shared_version,
         _ => anyhow::bail!("Queue is not shared"),
+    };
+
+    let intent_version = match intent_obj.owner {
+        Some(sui_sdk::types::object::Owner::Shared { initial_shared_version }) => initial_shared_version,
+        _ => anyhow::bail!("Intent is not shared"),
     };
 
     let vault_version = match vault_obj.owner {
@@ -136,11 +143,11 @@ pub async fn execute_swap_mock(
         mutability: SharedObjectMutability::Mutable,
     })?;
 
-    let intent_arg = ptb.obj(ObjectArg::ImmOrOwnedObject((
-        intent_id,
-        intent_obj.version,
-        intent_obj.digest,
-    )))?;
+    let intent_arg = ptb.obj(ObjectArg::SharedObject {
+        id: intent_id,
+        initial_shared_version: intent_version,
+        mutability: SharedObjectMutability::Mutable,
+    })?;
 
     let vault_arg = ptb.obj(ObjectArg::SharedObject {
         id: vault_id,
@@ -156,10 +163,10 @@ pub async fn execute_swap_mock(
 
     // Ticket IDs consumed
     let ticket_ids: Vec<u64> = decrypted.ticket_amounts.iter().map(|(id, _)| *id).collect();
-    let ticket_ids_arg = ptb.pure(bcs::to_bytes(&ticket_ids)?)?;
+    let ticket_ids_arg = ptb.pure(ticket_ids)?;
 
-    // Encrypted output
-    let encrypted_arg = ptb.pure(bcs::to_bytes(&encrypted_output)?)?;
+    // Encrypted output (this is already Vec<u8>, pass directly)
+    let encrypted_arg = ptb.pure(encrypted_output)?;
 
     // From amount
     let from_amount_arg = ptb.pure(decrypted.total_amount)?;
@@ -197,22 +204,78 @@ pub async fn execute_swap_mock(
         gas_price,
     );
 
-    // Output unsigned transaction for manual execution
-    // (fastcrypto version conflict prevents automatic signing)
+    // Sign transaction via HTTP signing service
     let tx_bytes = bcs::to_bytes(&tx_data)?;
     let tx_b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &tx_bytes);
 
-    println!("   ⚠️  Unsigned transaction ready for manual execution:");
-    println!("   📋 Copy this base64 and sign with backend wallet:");
-    println!("");
-    println!("{}", tx_b64);
-    println!("");
-    println!("   To execute:");
-    println!("   export TX_BYTES='{}'", tx_b64);
-    println!("   sui client sign-and-execute-tx --tx-bytes $TX_BYTES");
-    println!("");
+    println!("   🔐 Calling signing service...");
 
-    Ok("unsigned_tx_ready".to_string())
+    // Call the signing service (tx-signer on port 4000)
+    let client = reqwest::Client::new();
+    let response = client.post("http://127.0.0.1:4000/sign")
+        .json(&serde_json::json!({
+            "address": backend_address.to_string(),
+            "tx_data_b64": tx_b64
+        }))
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) if resp.status().is_success() => {
+            let sign_response: serde_json::Value = resp.json().await?;
+            let signature = sign_response["signature"].as_str()
+                .ok_or_else(|| anyhow::anyhow!("No signature in response"))?;
+
+            println!("   ✅ Transaction signed successfully!");
+            println!("   📝 Signature: {}...", &signature[..40.min(signature.len())]);
+
+            // Now execute the signed transaction
+            println!("   🚀 Executing signed transaction on-chain...");
+
+            // Use sui client execute-signed-tx
+            let exec_output = std::process::Command::new("sui")
+                .args(&[
+                    "client",
+                    "execute-signed-tx",
+                    "--tx-bytes", &tx_b64,
+                    "--signatures", signature,
+                ])
+                .output()?;
+
+            let stdout = String::from_utf8_lossy(&exec_output.stdout);
+            let stderr = String::from_utf8_lossy(&exec_output.stderr);
+
+            if exec_output.status.success() {
+                println!("   ✅ Transaction executed successfully!");
+                println!("{}", stdout);
+
+                // Try to extract transaction digest from output
+                let digest = stdout
+                    .lines()
+                    .find(|line| line.contains("Transaction Digest") || line.contains("digest"))
+                    .and_then(|line| line.split(':').nth(1))
+                    .map(|s| s.trim().to_string())
+                    .unwrap_or_else(|| "unknown".to_string());
+
+                Ok(digest)
+            } else {
+                println!("   ❌ Transaction execution failed!");
+                println!("   STDOUT: {}", stdout);
+                println!("   STDERR: {}", stderr);
+                anyhow::bail!("Failed to execute transaction: {} {}", stdout, stderr);
+            }
+        }
+        Ok(resp) => {
+            let status = resp.status();
+            let error_text = resp.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            anyhow::bail!("Signing service error ({}): {}", status, error_text);
+        }
+        Err(e) => {
+            println!("   ❌ Failed to connect to signing service!");
+            println!("   Make sure tx-signer is running: cd tx-signer && cargo run");
+            anyhow::bail!("Signing service unreachable: {}", e);
+        }
+    }
 }
 
 #[cfg(not(feature = "mist-protocol"))]
