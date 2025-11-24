@@ -72,6 +72,13 @@ export default function CetusSwap() {
           token_b_address: '0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI',
           fee: '0.0025',
         },
+        {
+          swap_account: '0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab',
+          symbol: 'USDC-SUI (Native)',
+          token_a_address: '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC',
+          token_b_address: '0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI',
+          fee: '0.0025',
+        },
       ];
 
       setPools(availablePools);
