@@ -152,7 +152,7 @@ async fn build_swap_transaction(
     );
 
     // Fetch pools from Cetus API and find the one matching the token pair
-    let all_pools = match cetus::CetusService::fetch_pools(&state.http_client).await {
+    let mut all_pools = match cetus::CetusService::fetch_pools(&state.http_client).await {
         Ok(pools) => pools,
         Err(e) => {
             error!("Failed to fetch pools: {}", e);
@@ -164,6 +164,22 @@ async fn build_swap_transaction(
             ));
         }
     };
+
+    all_pools.push(cetus::CetusPool {
+        swap_account: "0x51e883ba7c0b566a26cbc8a94cd33eb0abd418a77cc1e60ad22fd9b1f29cd2ab"
+            .to_string(),
+        symbol: "USDC-SUI".to_string(),
+        coin_a_address:
+            "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC"
+                .to_string(),
+        coin_b_address:
+            "0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI"
+                .to_string(),
+        fee_rate: "0.0025".to_string(),
+        current_sqrt_price: "".to_string(),
+        tvl_in_usd: "".to_string(),
+        vol_in_usd_24h: "".to_string(),
+    });
 
     // Find pool matching the token pair
     let pool = all_pools
@@ -192,7 +208,10 @@ async fn build_swap_transaction(
     //   3. Or using Cetus API's quote endpoint
     let min_output = 1u64;
 
-    info!("Building swap with min_output={} (slippage protection disabled)", min_output);
+    info!(
+        "Building swap with min_output={} (slippage protection disabled)",
+        min_output
+    );
 
     // Build unsigned transaction using pool_script_v2
     match transaction::build_swap_transaction_v2(
