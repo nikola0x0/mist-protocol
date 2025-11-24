@@ -15,9 +15,9 @@ const anonymousPro = Anonymous_Pro({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://mistprotocol.xyz'),
+  metadataBase: new URL('https://0xmist.xyz'),
   title: {
-    default: "Mist Protocol - Private DeFi on Sui",
+    default: "Mist Protocol",
     template: "%s | Mist Protocol"
   },
   description: "Privacy-preserving intent-based DeFi on Sui. Trade, swap, and transact with complete privacy using zero-knowledge proofs and secure multi-party computation.",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://mistprotocol.xyz",
+    url: "https://0xmist.xyz",
     siteName: "Mist Protocol",
     title: "Mist Protocol - Private DeFi on Sui",
     description: "Privacy-preserving intent-based DeFi on Sui. Trade, swap, and transact with complete privacy using zero-knowledge proofs and secure multi-party computation.",

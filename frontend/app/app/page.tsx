@@ -15,11 +15,6 @@ import { SealClient, EncryptedObject, SessionKey } from "@mysten/seal";
 import { fromHex, toHex } from "@mysten/sui/utils";
 import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
 
-// Set page title
-if (typeof document !== "undefined") {
-  document.title = "Mist Protocol";
-}
-
 // Utility to sanitize hex IDs
 const sanitizeHexId = (id: string): string => {
   if (!id) return "";
