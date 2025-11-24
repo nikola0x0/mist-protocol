@@ -40,9 +40,6 @@ export function SwapCard() {
             className="flex-1 bg-transparent text-2xl font-medium focus:outline-none"
           />
           <div className="flex items-center gap-2 px-3 py-2 bg-[#141414] rounded-lg">
-            <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-xs">
-              🔒
-            </div>
             <span className="font-medium">{fromToken}</span>
           </div>
         </div>
@@ -74,9 +71,6 @@ export function SwapCard() {
             className="flex-1 bg-transparent text-2xl font-medium text-gray-500"
           />
           <div className="flex items-center gap-2 px-3 py-2 bg-[#141414] rounded-lg">
-            <div className="w-5 h-5 bg-green-600 rounded-full flex items-center justify-center text-xs">
-              🔒
-            </div>
             <span className="font-medium">{toToken}</span>
           </div>
         </div>
@@ -92,7 +86,7 @@ export function SwapCard() {
       </button>
 
       <div className="mt-4 text-xs text-gray-500 text-center">
-        ℹ️ TEE will execute swap on Cetus DEX privately
+        TEE will execute swap on Cetus DEX privately
       </div>
     </div>
   );

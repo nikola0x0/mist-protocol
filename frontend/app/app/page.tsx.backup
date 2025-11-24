@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import { ConnectButton } from "@/components/ConnectButton";
 import { UnwrapCard } from "@/components/UnwrapCard";
@@ -14,11 +14,6 @@ import { Transaction } from "@mysten/sui/transactions";
 import { SealClient, EncryptedObject, SessionKey } from "@mysten/seal";
 import { fromHex, toHex } from "@mysten/sui/utils";
 import { SuiClient, getFullnodeUrl } from "@mysten/sui/client";
-
-// Set page title
-if (typeof document !== "undefined") {
-  document.title = "Mist Protocol";
-}
 
 // Utility to sanitize hex IDs
 const sanitizeHexId = (id: string): string => {
@@ -78,8 +73,8 @@ export default function MistFlowTestPage() {
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [activePhase, setActivePhase] = useState<
-    "vault" | "wrap" | "swap" | "unwrap"
-  >("vault");
+    "setup" | "deposit" | "swap" | "withdraw"
+  >("setup");
 
   const addLog = (message: string) => {
     setLogs((prev) => [
@@ -96,7 +91,7 @@ export default function MistFlowTestPage() {
     if (sealClient) return; // Already initialized
 
     try {
-      addLog("Initializing SEAL client...");
+      addLog("🔐 Initializing SEAL client...");
 
       // Create a fresh SuiClient for SEAL
       const sealSuiClient = new SuiClient({ url: getFullnodeUrl("testnet") });
@@ -118,21 +113,21 @@ export default function MistFlowTestPage() {
       });
 
       setSealClient(client);
-      addLog("SEAL client initialized");
+      addLog("✅ SEAL client initialized");
     } catch (error: any) {
-      addLog(`ERROR: SEAL client init failed: ${error.message}`);
+      addLog(`❌ SEAL client init failed: ${error.message}`);
     }
   };
 
   const discoverVaults = async () => {
     if (!account) {
-      addLog("ERROR: Please connect wallet first");
+      addLog("❌ Please connect wallet first");
       return;
     }
 
     try {
       setLoading(true);
-      addLog("Discovering your vaults...");
+      addLog("🔍 Discovering your vaults...");
 
       // Query user's VaultRegistry object
       const registries = await suiClient.getOwnedObjects({
@@ -144,12 +139,12 @@ export default function MistFlowTestPage() {
       });
 
       if (registries.data.length === 0) {
-        addLog("No vaults found. Create your first vault!");
+        addLog("📭 No vaults found. Create your first vault!");
         setAvailableVaults([]);
         return;
       }
 
-      addLog(`Found ${registries.data.length} registry/registries`);
+      addLog(`📋 Found ${registries.data.length} registry/registries`);
 
       // Collect all vault IDs from ALL registries
       const allVaultIds: string[] = [];
@@ -169,7 +164,7 @@ export default function MistFlowTestPage() {
           const vaultIds = fields.vault_ids || [];
           allVaultIds.push(...vaultIds);
           addLog(
-            `  Registry ${registryObjectId.substring(0, 20)}... has ${
+            `  📦 Registry ${registryObjectId.substring(0, 20)}... has ${
               vaultIds.length
             } vault(s)`
           );
@@ -181,19 +176,19 @@ export default function MistFlowTestPage() {
       const firstRegistryId = firstRegistry.data?.objectId;
       setRegistryId(firstRegistryId || "");
 
-      addLog(`Found ${allVaultIds.length} total vault(s)`);
+      addLog(`✅ Found ${allVaultIds.length} total vault(s)`);
       setAvailableVaults(allVaultIds);
 
       // Auto-select first vault and initialize SEAL client
       if (allVaultIds.length > 0) {
         setVaultId(allVaultIds[0]);
-        addLog(`Selected vault: ${allVaultIds[0].substring(0, 20)}...`);
+        addLog(`🗄️ Selected vault: ${allVaultIds[0].substring(0, 20)}...`);
 
         // Initialize SEAL client if not already initialized
         await initializeSealClient();
       }
     } catch (error: any) {
-      addLog(`ERROR: Discovery error: ${error.message || error}`);
+      addLog(`❌ Discovery error: ${error.message || error}`);
     } finally {
       setLoading(false);
     }
@@ -201,7 +196,7 @@ export default function MistFlowTestPage() {
 
   const handleCreateVault = async () => {
     if (!account) {
-      addLog("ERROR: Please connect wallet first");
+      addLog("❌ Please connect wallet first");
       return;
     }
 
@@ -221,7 +216,7 @@ export default function MistFlowTestPage() {
       if (registries.data.length > 0) {
         // User has a registry - add vault to existing registry
         const existingRegistryId = registries.data[0].data?.objectId;
-        addLog(`Adding vault to existing registry...`);
+        addLog(`🗄️ Adding vault to existing registry...`);
 
         tx.moveCall({
           target: `${packageId}::seal_policy::add_vault_to_registry`,
@@ -229,7 +224,7 @@ export default function MistFlowTestPage() {
         });
       } else {
         // User doesn't have a registry - create first vault
-        addLog("Creating first vault...");
+        addLog("🗄️ Creating first vault...");
 
         tx.moveCall({
           target: `${packageId}::seal_policy::create_vault_entry`,
@@ -242,7 +237,7 @@ export default function MistFlowTestPage() {
           { transaction: tx },
           {
             onSuccess: async (result) => {
-              addLog(`Vault creation TX: ${result.digest}`);
+              addLog(`✅ Vault creation TX: ${result.digest}`);
 
               // Wait for transaction to be indexed
               await new Promise((r) => setTimeout(r, 2000));
@@ -263,7 +258,7 @@ export default function MistFlowTestPage() {
               if (vaultObj && vaultObj.type === "created") {
                 const id = sanitizeHexId(vaultObj.objectId);
                 setVaultId(id);
-                addLog(`Vault created: ${id}`);
+                addLog(`🗄️ Vault created: ${id}`);
 
                 // Initialize SEAL client
                 // Create a fresh SuiClient for SEAL (required for proper initialization)
@@ -278,8 +273,8 @@ export default function MistFlowTestPage() {
                   process.env.NEXT_PUBLIC_SEAL_SERVER_2 ||
                   "0xf5d14a81a982144ae441cd7d64b09027f116a468bd36e7eca494f750591623c8";
 
-                addLog(`SEAL Server 1: ${server1.substring(0, 20)}...`);
-                addLog(`SEAL Server 2: ${server2.substring(0, 20)}...`);
+                addLog(`🔑 SEAL Server 1: ${server1.substring(0, 20)}...`);
+                addLog(`🔑 SEAL Server 2: ${server2.substring(0, 20)}...`);
 
                 const client = new SealClient({
                   suiClient: sealSuiClient, // Use fresh SuiClient
@@ -296,7 +291,7 @@ export default function MistFlowTestPage() {
                   verifyKeyServers: false,
                 });
                 setSealClient(client);
-                addLog("SEAL client initialized");
+                addLog("🔐 SEAL client initialized");
 
                 // Refresh vault discovery
                 await discoverVaults();
@@ -307,14 +302,14 @@ export default function MistFlowTestPage() {
               }
             },
             onError: (error) => {
-              addLog(`ERROR: Vault creation failed: ${error.message}`);
+              addLog(`❌ Vault creation failed: ${error.message}`);
               reject(error);
             },
           }
         );
       });
     } catch (error: any) {
-      addLog(`ERROR: ${error.message || error}`);
+      addLog(`❌ Error: ${error.message || error}`);
     } finally {
       setLoading(false);
     }
@@ -326,13 +321,13 @@ export default function MistFlowTestPage() {
 
   const loadTicketsFromVault = async () => {
     if (!vaultId) {
-      addLog("ERROR: Please select a vault first");
+      addLog("❌ Please select a vault first");
       return;
     }
 
     try {
       setLoading(true);
-      addLog("Loading tickets from vault...");
+      addLog("📦 Loading tickets from vault...");
 
       // Get the vault object
       const vaultObj = await suiClient.getObject({
@@ -341,17 +336,17 @@ export default function MistFlowTestPage() {
       });
 
       if (vaultObj.data?.content?.dataType !== "moveObject") {
-        addLog("ERROR: Invalid vault object");
+        addLog("❌ Invalid vault object");
         return;
       }
 
       const fields = vaultObj.data.content.fields as any;
       const nextTicketId = parseInt(fields.next_ticket_id);
 
-      addLog(`Vault has ${nextTicketId} ticket(s)`);
+      addLog(`🎫 Vault has ${nextTicketId} ticket(s)`);
 
       if (nextTicketId === 0) {
-        addLog("No tickets in vault yet");
+        addLog("📭 No tickets in vault yet");
         setTickets([]);
         return;
       }
@@ -360,7 +355,7 @@ export default function MistFlowTestPage() {
       const loadedTickets = [];
       const objectBagId = fields.tickets.fields.id.id;
 
-      addLog(`ObjectBag ID: ${objectBagId.substring(0, 20)}...`);
+      addLog(`📂 ObjectBag ID: ${objectBagId.substring(0, 20)}...`);
 
       for (let i = 0; i < nextTicketId; i++) {
         try {
@@ -382,7 +377,7 @@ export default function MistFlowTestPage() {
 
           if (!ticketField.data) {
             addLog(
-              `  Ticket #${i} not found (may be locked in pending swap intent)`
+              `  ⚠️ Ticket #${i} not found (may be locked in pending swap intent)`
             );
             continue;
           }
@@ -400,7 +395,7 @@ export default function MistFlowTestPage() {
               ticketFields.ticket_id || ticketFields.value?.fields?.ticket_id;
 
             if (!encryptedAmountBytes) {
-              addLog(`  WARNING: Ticket #${i} has no encrypted_amount field`);
+              addLog(`  ⚠️ Ticket #${i} has no encrypted_amount field`);
               continue;
             }
 
@@ -416,17 +411,17 @@ export default function MistFlowTestPage() {
               txUrl: `https://testnet.suivision.xyz/object/${ticketField.data.objectId}`,
             });
 
-            addLog(`  Loaded Ticket #${i} (${tokenType})`);
+            addLog(`  ✅ Loaded Ticket #${i} (${tokenType})`);
           }
         } catch (err: any) {
-          addLog(`  Ticket #${i} not found (may be locked in swap intent)`);
+          addLog(`  ⚠️ Ticket #${i} not found (may be locked in swap intent)`);
         }
       }
 
       setTickets(loadedTickets);
-      addLog(`Loaded ${loadedTickets.length} tickets`);
+      addLog(`✅ Loaded ${loadedTickets.length} tickets`);
     } catch (error: any) {
-      addLog(`ERROR: Failed to load tickets: ${error.message || error}`);
+      addLog(`❌ Failed to load tickets: ${error.message || error}`);
     } finally {
       setLoading(false);
     }
@@ -434,14 +429,14 @@ export default function MistFlowTestPage() {
 
   const handleDepositSUI = async (amount: string) => {
     if (!sealClient || !vaultId) {
-      addLog("ERROR: Please create vault first");
+      addLog("❌ Please create vault first");
       return;
     }
 
     try {
       setLoading(true);
       addLog(
-        `Depositing ${amount} MIST (${(
+        `💰 Depositing ${amount} MIST (${(
           parseInt(amount) / 1_000_000_000
         ).toFixed(4)} SUI)...`
       );
@@ -469,13 +464,13 @@ export default function MistFlowTestPage() {
         });
         encryptedObject = result.encryptedObject;
       } catch (encryptError: any) {
-        addLog(`ERROR: SEAL encryption error: ${encryptError.message}`);
+        addLog(`❌ SEAL encryption error: ${encryptError.message}`);
         addLog(`   Details: ${JSON.stringify(encryptError)}`);
         throw encryptError;
       }
 
       const encryptedPointer = Array.from(encryptedObject);
-      addLog(`Amount encrypted (${encryptedPointer.length} bytes)`);
+      addLog(`✅ Amount encrypted (${encryptedPointer.length} bytes)`);
 
       // Step 2: Call wrap_sui to create ticket
       const tx = new Transaction();
@@ -496,7 +491,7 @@ export default function MistFlowTestPage() {
           { transaction: tx },
           {
             onSuccess: async (result) => {
-              addLog(`Deposit TX: ${result.digest}`);
+              addLog(`✅ Deposit TX: ${result.digest}`);
 
               await new Promise((r) => setTimeout(r, 2000));
 
@@ -525,7 +520,7 @@ export default function MistFlowTestPage() {
                   },
                 ]);
 
-                addLog(`Ticket #${ticketId} created (${tokenType})`);
+                addLog(`🎫 Ticket #${ticketId} created (${tokenType})`);
 
                 // Reload tickets from vault
                 await loadTicketsFromVault();
@@ -536,14 +531,14 @@ export default function MistFlowTestPage() {
               }
             },
             onError: (error) => {
-              addLog(`ERROR: Deposit failed: ${error.message}`);
+              addLog(`❌ Deposit failed: ${error.message}`);
               reject(error);
             },
           }
         );
       });
     } catch (error: any) {
-      addLog(`ERROR: ${error.message || error}`);
+      addLog(`❌ Error: ${error.message || error}`);
     } finally {
       setLoading(false);
     }
@@ -555,26 +550,26 @@ export default function MistFlowTestPage() {
 
   const handleTestDecryption = async (ticketId: number) => {
     if (!sealClient || !vaultId || !account) {
-      addLog("ERROR: Please ensure vault is created and wallet is connected");
+      addLog("❌ Please ensure vault is created and wallet is connected");
       return;
     }
 
     try {
       setLoading(true);
-      addLog(`Testing decryption for Ticket #${ticketId}...`);
+      addLog(`🔓 Testing decryption for Ticket #${ticketId}...`);
 
       // Find the ticket
       const ticket = tickets.find((t) => t.id === ticketId);
       if (!ticket) {
-        addLog("ERROR: Ticket not found");
+        addLog("❌ Ticket not found");
         return;
       }
 
       // Step 1: Parse encrypted data
-      addLog(`Parsing encrypted data...`);
+      addLog(`📝 Parsing encrypted data...`);
       const encryptedBytes = fromHex(ticket.encryptedAmount);
 
-      addLog(`Encrypted bytes length: ${encryptedBytes.length}`);
+      addLog(`🔍 Encrypted bytes length: ${encryptedBytes.length}`);
 
       const parsed = EncryptedObject.parse(new Uint8Array(encryptedBytes));
 
@@ -612,14 +607,14 @@ export default function MistFlowTestPage() {
       const sealSuiClient = new SuiClient({ url: getFullnodeUrl("testnet") });
 
       // Build transaction bytes
-      addLog(`Building transaction bytes...`);
+      addLog(`🔨 Building transaction bytes...`);
       const txBytes = await tx.build({
         client: sealSuiClient,
         onlyTransactionKind: true,
       });
 
       // Step 3: Create session key and request signature
-      addLog(`Creating session key...`);
+      addLog(`🔑 Creating session key...`);
       const sessionKey = await SessionKey.create({
         address: account.address,
         packageId,
@@ -628,7 +623,7 @@ export default function MistFlowTestPage() {
       });
 
       // Step 4: Request personal message signature from user
-      addLog(`Requesting signature from wallet...`);
+      addLog(`✍️ Requesting signature from wallet...`);
       const personalMessage = sessionKey.getPersonalMessage();
 
       await new Promise<void>((resolve, reject) => {
@@ -637,13 +632,13 @@ export default function MistFlowTestPage() {
           {
             onSuccess: async (result) => {
               try {
-                addLog(`Signature received`);
+                addLog(`✅ Signature received`);
 
                 // Set the signature on the session key
                 await sessionKey.setPersonalMessageSignature(result.signature);
 
                 // Step 5: Fetch decryption keys from SEAL servers
-                addLog(`Fetching decryption keys...`);
+                addLog(`🔑 Fetching decryption keys...`);
 
                 await sealClient.fetchKeys({
                   ids: [parsed.id],
@@ -651,10 +646,10 @@ export default function MistFlowTestPage() {
                   sessionKey,
                   threshold: 2,
                 });
-                addLog(`Keys fetched successfully`);
+                addLog(`✅ Keys fetched successfully`);
 
                 // Step 6: Decrypt locally
-                addLog(`Decrypting locally...`);
+                addLog(`🔓 Decrypting locally...`);
                 const decryptedData = await sealClient.decrypt({
                   data: encryptedBytes,
                   sessionKey,
@@ -666,11 +661,11 @@ export default function MistFlowTestPage() {
                 const decryptedAmount = decoder.decode(decryptedData);
 
                 addLog(
-                  `Decrypted amount: ${decryptedAmount} (${(
+                  `✅ Decrypted amount: ${decryptedAmount} (${(
                     parseInt(decryptedAmount) / 1_000_000_000
                   ).toFixed(4)} SUI)`
                 );
-                addLog(`Decryption successful! You own this ticket.`);
+                addLog(`✅ ✓ Decryption successful! You own this ticket.`);
 
                 // Update ticket with decrypted amount
                 setTickets((prev) =>
@@ -683,19 +678,19 @@ export default function MistFlowTestPage() {
 
                 resolve();
               } catch (error: any) {
-                addLog(`ERROR: Decryption process failed: ${error.message}`);
+                addLog(`❌ Decryption process failed: ${error.message}`);
                 reject(error);
               }
             },
             onError: (error) => {
-              addLog(`ERROR: Signature rejected: ${error.message}`);
+              addLog(`❌ Signature rejected: ${error.message}`);
               reject(error);
             },
           }
         );
       });
     } catch (error: any) {
-      addLog(`ERROR: Decryption failed: ${error.message || error}`);
+      addLog(`❌ Decryption failed: ${error.message || error}`);
       addLog(`   Details: ${JSON.stringify(error)}`);
       addLog(`   This is expected if you're not the vault owner!`);
     } finally {
@@ -709,13 +704,13 @@ export default function MistFlowTestPage() {
 
   const loadPendingIntents = async () => {
     if (!vaultId) {
-      addLog("ERROR: Please select a vault first");
+      addLog("❌ Please select a vault first");
       return;
     }
 
     try {
       setLoading(true);
-      addLog("Loading pending swap intents...");
+      addLog("🔍 Loading pending swap intents...");
 
       // Get IntentQueue object
       const queueObj = await suiClient.getObject({
@@ -724,7 +719,7 @@ export default function MistFlowTestPage() {
       });
 
       if (queueObj.data?.content?.dataType !== "moveObject") {
-        addLog("ERROR: Invalid queue object");
+        addLog("❌ Invalid queue object");
         return;
       }
 
@@ -745,7 +740,7 @@ export default function MistFlowTestPage() {
         parentId: pendingTable.fields.id.id,
       });
 
-      addLog(`Querying ${dynamicFields.data.length} pending intents...`);
+      addLog(`🔍 Querying ${dynamicFields.data.length} pending intents...`);
 
       // Load each intent object
       const intents = [];
@@ -787,14 +782,14 @@ export default function MistFlowTestPage() {
             }
           }
         } catch (err: any) {
-          addLog(`  WARNING: Failed to load intent: ${err.message}`);
+          addLog(`  ⚠️ Failed to load intent: ${err.message}`);
         }
       }
 
       setPendingIntents(intents);
-      addLog(`Found ${intents.length} pending intent(s) for this vault`);
+      addLog(`✅ Found ${intents.length} pending intent(s) for this vault`);
     } catch (error: any) {
-      addLog(`ERROR: Failed to load intents: ${error.message || error}`);
+      addLog(`❌ Failed to load intents: ${error.message || error}`);
     } finally {
       setLoading(false);
     }
@@ -802,18 +797,18 @@ export default function MistFlowTestPage() {
 
   const handleCreateSwapIntent = async () => {
     if (!vaultId || !account) {
-      addLog("ERROR: Please select vault and connect wallet first");
+      addLog("❌ Please select vault and connect wallet first");
       return;
     }
 
     if (selectedTicketIds.length === 0) {
-      addLog("ERROR: Please select at least one ticket");
+      addLog("❌ Please select at least one ticket");
       return;
     }
 
     try {
       setLoading(true);
-      addLog("Creating swap intent on-chain...");
+      addLog("🔄 Creating swap intent on-chain...");
 
       addLog(`   Tickets: [${selectedTicketIds.join(", ")}]`);
       addLog(`   Token Out: ${swapConfig.tokenOut}`);
@@ -833,7 +828,7 @@ export default function MistFlowTestPage() {
       addLog(`   Min Output: ${minOutput} (${slippage}% slippage protection)`);
 
       // Call create_swap_intent on-chain (no encryption needed!)
-      addLog(`Submitting swap intent transaction...`);
+      addLog(`📝 Submitting swap intent transaction...`);
 
       const tx = new Transaction();
       tx.moveCall({
@@ -853,11 +848,11 @@ export default function MistFlowTestPage() {
           { transaction: tx },
           {
             onSuccess: async (result) => {
-              addLog(`Swap intent TX: ${result.digest}`);
-              addLog(`SwapIntentEvent emitted on-chain!`);
-              addLog(`Backend will detect and process the swap...`);
+              addLog(`✅ Swap intent TX: ${result.digest}`);
+              addLog(`🎉 SwapIntentEvent emitted on-chain!`);
+              addLog(`🤖 Backend will detect and process the swap...`);
               addLog(
-                `View TX: https://testnet.suivision.xyz/txblock/${result.digest}`
+                `📺 View TX: https://testnet.suivision.xyz/txblock/${result.digest}`
               );
 
               setSwapResult({
@@ -868,14 +863,14 @@ export default function MistFlowTestPage() {
               resolve();
             },
             onError: (error) => {
-              addLog(`ERROR: Swap intent failed: ${error.message}`);
+              addLog(`❌ Swap intent failed: ${error.message}`);
               reject(error);
             },
           }
         );
       });
     } catch (error: any) {
-      addLog(`ERROR: ${error.message || error}`);
+      addLog(`❌ Error: ${error.message || error}`);
     } finally {
       setLoading(false);
     }
@@ -912,24 +907,19 @@ export default function MistFlowTestPage() {
       </header>
 
       <div className="relative max-w-7xl mx-auto px-8 py-8">
-        {/* Tab Navigation */}
+        {/* Phase Navigation */}
         <div className="flex gap-3 mb-8">
-          {[
-            { key: "vault", label: "Vault" },
-            { key: "wrap", label: "Wrap" },
-            { key: "swap", label: "Swap" },
-            { key: "unwrap", label: "Unwrap" },
-          ].map((tab) => (
+          {["setup", "deposit", "swap", "withdraw"].map((phase) => (
             <button
-              key={tab.key}
-              onClick={() => setActivePhase(tab.key as any)}
+              key={phase}
+              onClick={() => setActivePhase(phase as any)}
               className={`glass-button px-6 py-2.5 font-medium font-tektur transition-all ${
-                activePhase === tab.key
+                activePhase === phase
                   ? "border-white/20 text-white"
                   : "text-gray-400 hover:text-white hover:border-white/15"
               }`}
             >
-              {tab.label}
+              {phase.charAt(0).toUpperCase() + phase.slice(1)}
             </button>
           ))}
         </div>
@@ -937,11 +927,11 @@ export default function MistFlowTestPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Left Column - Actions */}
           <div className="space-y-6">
-            {/* Vault Tab */}
-            {activePhase === "vault" && (
+            {/* Phase 1: Setup */}
+            {activePhase === "setup" && (
               <div className="card p-6 border border-white/10">
                 <h2 className="text-2xl font-bold mb-4 font-tektur">
-                  Manage Your Vault
+                  Phase 1: Setup
                 </h2>
                 <div className="space-y-4">
                   {/* Vault Discovery */}
@@ -1019,11 +1009,11 @@ export default function MistFlowTestPage() {
               </div>
             )}
 
-            {/* Wrap Tab */}
-            {activePhase === "wrap" && (
+            {/* Phase 2: Deposit */}
+            {activePhase === "deposit" && (
               <div className="card p-6 border border-white/10">
                 <h2 className="text-2xl font-bold mb-4 font-tektur">
-                  Wrap Tokens
+                  Phase 2: Deposit & Create Tickets
                 </h2>
                 <div className="space-y-4">
                   {/* Load Tickets Button */}
@@ -1163,11 +1153,11 @@ export default function MistFlowTestPage() {
               </div>
             )}
 
-            {/* Swap Tab */}
+            {/* Phase 3: Swap */}
             {activePhase === "swap" && (
               <div className="card p-6 border border-white/10">
                 <h2 className="text-2xl font-bold mb-4 font-tektur">
-                  Private Swaps
+                  Phase 3: Privacy-Preserving Swap
                 </h2>
                 <div className="space-y-4">
                   {/* Load Pending Intents */}
@@ -1414,11 +1404,11 @@ export default function MistFlowTestPage() {
               </div>
             )}
 
-            {/* Unwrap Tab */}
-            {activePhase === "unwrap" && (
+            {/* Phase 4: Withdraw */}
+            {activePhase === "withdraw" && (
               <div className="card p-6 border border-white/10">
                 <h2 className="text-2xl font-bold mb-4 font-tektur">
-                  Unwrap Tokens
+                  Phase 4: Unwrap & Withdraw
                 </h2>
                 <UnwrapCard />
               </div>
@@ -1443,6 +1433,16 @@ export default function MistFlowTestPage() {
                   <span className="text-gray-400">Vault:</span>
                   <span className="ml-2 font-mono">
                     {vaultId ? `${vaultId.substring(0, 20)}...` : "Not created"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-400">SEAL Client:</span>
+                  <span
+                    className={`ml-2 ${
+                      sealClient ? "text-gray-300" : "text-gray-500"
+                    }`}
+                  >
+                    {sealClient ? "Ready" : "Not initialized"}
                   </span>
                 </div>
                 <div>

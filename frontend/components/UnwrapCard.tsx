@@ -64,8 +64,12 @@ export function UnwrapCard() {
       // Create a fresh SuiClient for SEAL
       const sealSuiClient = new SuiClient({ url: getFullnodeUrl("testnet") });
 
-      const server1 = process.env.NEXT_PUBLIC_SEAL_SERVER_1 || "0x73d05d62c18d9374e3ea529e8e0ed6161da1a141a94d3f76ae3fe4e99356db75";
-      const server2 = process.env.NEXT_PUBLIC_SEAL_SERVER_2 || "0xf5d14a81a982144ae441cd7d64b09027f116a468bd36e7eca494f750591623c8";
+      const server1 =
+        process.env.NEXT_PUBLIC_SEAL_SERVER_1 ||
+        "0x73d05d62c18d9374e3ea529e8e0ed6161da1a141a94d3f76ae3fe4e99356db75";
+      const server2 =
+        process.env.NEXT_PUBLIC_SEAL_SERVER_2 ||
+        "0xf5d14a81a982144ae441cd7d64b09027f116a468bd36e7eca494f750591623c8";
 
       const client = new SealClient({
         suiClient: sealSuiClient,
@@ -414,14 +418,16 @@ export function UnwrapCard() {
         encryptionId = parsed.id;
       } else if (Array.isArray(parsed.id)) {
         encryptionId = new Uint8Array(parsed.id);
-      } else if (typeof parsed.id === 'string') {
+      } else if (typeof parsed.id === "string") {
         encryptionId = fromHex(parsed.id);
       } else {
         throw new Error(`Unexpected encryption ID type: ${typeof parsed.id}`);
       }
 
       const encryptionIdHex = toHex(encryptionId);
-      console.log(`   🔑 Encryption ID: ${encryptionIdHex.substring(0, 20)}...`);
+      console.log(
+        `   🔑 Encryption ID: ${encryptionIdHex.substring(0, 20)}...`
+      );
 
       // Build seal_approve_user transaction
       const tx = new Transaction();
@@ -455,7 +461,11 @@ export function UnwrapCard() {
       const decoder = new TextDecoder();
       const decryptedAmount = decoder.decode(decrypted);
 
-      console.log(`   ✅ Decrypted amount: ${decryptedAmount} (${(parseInt(decryptedAmount) / (ticket.token_type === "SUI" ? 1e9 : 1e6)).toFixed(6)} ${ticket.token_type})`);
+      console.log(
+        `   ✅ Decrypted amount: ${decryptedAmount} (${(
+          parseInt(decryptedAmount) / (ticket.token_type === "SUI" ? 1e9 : 1e6)
+        ).toFixed(6)} ${ticket.token_type})`
+      );
 
       setDecryptedAmount(decryptedAmount);
     } catch (error: any) {
@@ -474,7 +484,6 @@ export function UnwrapCard() {
     decryptTicketAmount(ticket);
   };
 
-  
   // Execute unwrap transaction
   const handleUnwrap = async () => {
     if (!selectedTicketId || !vault) return;
@@ -495,20 +504,20 @@ export function UnwrapCard() {
         tx.moveCall({
           target: `${process.env.NEXT_PUBLIC_PACKAGE_ID}::mist_protocol::unwrap_sui`,
           arguments: [
-            tx.object(vault.id),        // vault
+            tx.object(vault.id), // vault
             tx.object(process.env.NEXT_PUBLIC_POOL_ID || ""), // pool
             tx.pure.u64(selectedTicketId), // ticket_id
-            tx.pure.u64(fullAmount),      // amount
+            tx.pure.u64(fullAmount), // amount
           ],
         });
       } else {
         tx.moveCall({
           target: `${process.env.NEXT_PUBLIC_PACKAGE_ID}::mist_protocol::unwrap_usdc`,
           arguments: [
-            tx.object(vault.id),        // vault
+            tx.object(vault.id), // vault
             tx.object(process.env.NEXT_PUBLIC_POOL_ID || ""), // pool
             tx.pure.u64(selectedTicketId), // ticket_id
-            tx.pure.u64(fullAmount),      // amount
+            tx.pure.u64(fullAmount), // amount
           ],
         });
       }
@@ -523,9 +532,13 @@ export function UnwrapCard() {
       setUnwrapAmount("");
       setDecryptedAmount("");
 
-      const unwrapAmountDisplay = (parseInt(decryptedAmount) / (ticket.token_type === "SUI" ? 1e9 : 1e6)).toFixed(6);
+      const unwrapAmountDisplay = (
+        parseInt(decryptedAmount) / (ticket.token_type === "SUI" ? 1e9 : 1e6)
+      ).toFixed(6);
 
-      alert(`Successfully unwrapped ${unwrapAmountDisplay} ${ticket.token_type}!`);
+      alert(
+        `Successfully unwrapped ${unwrapAmountDisplay} ${ticket.token_type}!`
+      );
     } catch (error) {
       console.error("Unwrap failed:", error);
       alert("Unwrap failed. Please try again.");
@@ -614,7 +627,7 @@ export function UnwrapCard() {
             </p>
           </div>
           <div className="space-y-2 text-sm text-gray-600">
-            <p>💡 To get started:</p>
+            <p>To get started:</p>
             <ol className="list-decimal list-inside space-y-1 text-left max-w-xs mx-auto">
               <li>
                 Go to the <strong>Wrap</strong> tab
@@ -705,7 +718,6 @@ export function UnwrapCard() {
         </div>
       )}
 
-      
       {/* Unwrap Button */}
       <button
         onClick={handleUnwrap}
@@ -725,15 +737,22 @@ export function UnwrapCard() {
             className="w-5 h-5"
           />
         )}
-        {loading ? "Unwrapping..." : `Unwrap ${selectedTicket?.token_type || "Tokens"}`}
+        {loading
+          ? "Unwrapping..."
+          : `Unwrap ${selectedTicket?.token_type || "Tokens"}`}
       </button>
 
       {/* Info Section */}
       {selectedTicket && (
         <div className="mt-4 text-xs text-gray-500 text-center space-y-1">
           <p>ℹ️ Ticket #{selectedTicket.ticket_id} will be burned</p>
-          <p>You&apos;ll receive {displayAmount()} {selectedTicket.token_type} in your wallet</p>
-          <p className="text-yellow-500">⚠️ Partial unwrap is future work (requires SEAL re-encryption)</p>
+          <p>
+            You&apos;ll receive {displayAmount()} {selectedTicket.token_type} in
+            your wallet
+          </p>
+          <p className="text-yellow-500">
+            ⚠️ Partial unwrap is future work (requires SEAL re-encryption)
+          </p>
         </div>
       )}
     </div>
