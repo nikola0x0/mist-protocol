@@ -61,7 +61,7 @@ export default function Landing() {
               height={32}
               className="opacity-90"
             />
-            <h1 className="text-xl font-tektur text-white">Mist Protocol</h1>
+            <h1 className="text-xl font-tektur text-white">MistTx</h1>
           </div>
           <Link href="/app">
             <button className="glass-button px-6 py-2.5 text-white hover:glow">
@@ -99,17 +99,17 @@ export default function Landing() {
         {/* Text Content Below Card */}
         <div className="max-w-4xl mx-auto text-center space-y-8 px-6 relative z-50">
           <h2 className="text-6xl md:text-7xl font-bold leading-tight font-tektur animate-slide-up select-none">
-            <span className="gradient-text">Mist Protocol</span>
+            <span className="gradient-text">MistTx</span>
           </h2>
 
           <p
-            className="text-xl md:text-2xl text-gray-400 font-anonymous-pro animate-slide-up"
+            className="text-xl md:text-2xl text-gray-400 font-inter animate-slide-up"
             style={{ animationDelay: "0.1s" }}
           >
             A privacy layer for DeFi on Sui
           </p>
           <p
-            className="text-lg text-gray-500 font-anonymous-pro animate-slide-up"
+            className="text-lg text-gray-500 font-inter animate-slide-up"
             style={{ animationDelay: "0.2s" }}
           >
             To protect, your alpha
@@ -131,7 +131,7 @@ export default function Landing() {
       {/* Footer */}
       <footer className="relative z-30 border-t border-white/10 backdrop-blur-lg py-6">
         <div className="container mx-auto px-6 flex justify-between items-center">
-          <div className="text-sm text-gray-600 font-anonymous-pro">
+          <div className="text-sm text-gray-600 font-inter">
             Powered by Nautilus • Seal • Walrus • Cetus
           </div>
           <div className="flex items-center gap-4">

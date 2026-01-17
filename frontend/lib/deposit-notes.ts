@@ -428,6 +428,20 @@ export function loadStealthKeys(walletAddress: string): Array<{
   }
 }
 
+/**
+ * Remove a stealth key pair by output address (wallet-scoped)
+ */
+export function removeStealthKeyPair(
+  walletAddress: string,
+  outputAddress: string
+): void {
+  if (typeof window === "undefined") return;
+  if (!walletAddress) return;
+  const keys = loadStealthKeys(walletAddress);
+  const filtered = keys.filter((k) => k.output.address !== outputAddress);
+  localStorage.setItem(getStealthStorageKey(walletAddress), JSON.stringify(filtered));
+}
+
 // ============ EXPORT/IMPORT (BACKUP) ============
 
 /**

@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
-import { Tektur, Anonymous_Pro } from "next/font/google";
+import { Tektur, Inter } from "next/font/google";
 
 const tektur = Tektur({
   subsets: ["latin"],
   variable: "--font-tektur",
 });
 
-const anonymousPro = Anonymous_Pro({
-  weight: ["400", "700"],
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-anonymous-pro",
+  variable: "--font-inter",
 });
 
 export const metadata: Metadata = {
@@ -84,7 +83,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${tektur.variable} ${anonymousPro.variable}`}>
+      <body className={`${tektur.variable} ${inter.variable}`}>
         <Providers>{children}</Providers>
       </body>
     </html>
