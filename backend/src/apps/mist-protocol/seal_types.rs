@@ -1,5 +1,5 @@
-// SEAL Types for Mist Protocol
-// Simplified from seal-example for real-time decryption
+// SEAL Types for Mist Protocol v2
+// Nullifier-based privacy architecture
 
 use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::serde_helpers::ToFromByteArray;
@@ -51,14 +51,21 @@ where
         .collect()
 }
 
-/// Configuration for SEAL key servers
+/// Configuration for SEAL key servers and Mist Protocol v2 contracts
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(try_from = "SealConfigRaw")]
 pub struct SealConfig {
+    /// SEAL key server object IDs
     pub key_servers: Vec<ObjectID>,
+    /// SEAL key server public keys (BLS12-381)
     pub public_keys: Vec<IBEPublicKey>,
+    /// Mist Protocol v2 package ID
     pub package_id: ObjectID,
-    pub intent_queue_id: ObjectID,
+    /// LiquidityPool object ID (holds all deposits)
+    pub pool_id: ObjectID,
+    /// NullifierRegistry object ID (double-spend protection)
+    pub registry_id: ObjectID,
+    /// Map from server ID to public key
     pub server_pk_map: HashMap<ObjectID, IBEPublicKey>,
 }
 
@@ -71,7 +78,9 @@ struct SealConfigRaw {
     #[serde(deserialize_with = "deserialize_object_id")]
     package_id: ObjectID,
     #[serde(deserialize_with = "deserialize_object_id")]
-    intent_queue_id: ObjectID,
+    pool_id: ObjectID,
+    #[serde(deserialize_with = "deserialize_object_id")]
+    registry_id: ObjectID,
 }
 
 impl TryFrom<SealConfigRaw> for SealConfig {
@@ -97,7 +106,8 @@ impl TryFrom<SealConfigRaw> for SealConfig {
             key_servers: raw.key_servers,
             public_keys: raw.public_keys,
             package_id: raw.package_id,
-            intent_queue_id: raw.intent_queue_id,
+            pool_id: raw.pool_id,
+            registry_id: raw.registry_id,
             server_pk_map,
         })
     }

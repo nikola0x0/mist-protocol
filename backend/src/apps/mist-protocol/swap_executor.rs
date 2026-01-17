@@ -1,36 +1,43 @@
-//! Swap Executor - Builds execute_swap transactions
+//! Swap Executor v2 - Builds and executes swap transactions
 //!
-//! Note: Due to fastcrypto version conflicts (SEAL SDK uses d1fcb85, sui-types uses 09f8697),
-//! automatic signing is not possible. For now, we output unsigned transactions for manual execution.
+//! Mist Protocol v2 execute_swap signature:
+//! execute_swap(
+//!     registry: &mut NullifierRegistry,
+//!     pool: &mut LiquidityPool,
+//!     intent: SwapIntent,          // consumed
+//!     nullifier: vector<u8>,       // revealed by TEE
+//!     output_amount: u64,          // after swap
+//!     output_stealth: address,     // one-time address
+//!     remainder_amount: u64,       // leftover
+//!     remainder_stealth: address,  // one-time address
+//! )
 
+use super::{DecryptedSwapDetails, SwapExecutionResult, SwapIntentObject, SEAL_CONFIG};
+use crate::AppState;
 use anyhow::Result;
 use sui_sdk::SuiClient;
-use super::intent_processor::DecryptedSwapIntent;
-use crate::AppState;
+use tracing::info;
 
-/// Execute swap transaction (mock version for testing)
+/// Execute swap v2 - builds and submits the execute_swap transaction
 #[cfg(feature = "mist-protocol")]
-pub async fn execute_swap_mock(
-    decrypted: &DecryptedSwapIntent,
+pub async fn execute_swap_v2(
+    intent: &SwapIntentObject,
+    details: &DecryptedSwapDetails,
     sui_client: &SuiClient,
     _state: &AppState,
-) -> Result<String> {
+) -> Result<SwapExecutionResult> {
+    use sui_sdk::rpc_types::SuiObjectDataOptions;
     use sui_sdk::types::{
-        base_types::SuiAddress,
+        base_types::{ObjectID, SuiAddress},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{Argument, Command, ObjectArg, TransactionData, SharedObjectMutability},
+        transaction::{Command, ObjectArg, SharedObjectMutability, TransactionData},
         Identifier,
     };
-    use sui_sdk::rpc_types::SuiObjectDataOptions;
     use std::str::FromStr;
 
-    // For now, we'll output unsigned transaction for manual signing
-    // TODO: Fix fastcrypto version conflict to enable automatic signing
+    info!("Building execute_swap transaction...");
 
-    println!("   📦 Building execute_swap transaction...");
-
-    // Get backend address (already derived in main.rs)
-    use sui_crypto::ed25519::Ed25519PrivateKey;
+    // Get backend address from env
     let private_key_str = std::env::var("BACKEND_PRIVATE_KEY")?;
 
     // Decode Bech32 to get keypair
@@ -40,78 +47,66 @@ pub async fn execute_swap_mock(
     let decoded_bytes = Vec::<u8>::from_base32(&data)?;
     let key_bytes: [u8; 32] = decoded_bytes[1..33].try_into()?;
 
+    use sui_crypto::ed25519::Ed25519PrivateKey;
     let sui_private_key = Ed25519PrivateKey::new(key_bytes);
     let backend_address_sui = sui_private_key.public_key().to_address();
     let backend_address = SuiAddress::from_str(&format!("0x{}", hex::encode(backend_address_sui.as_bytes())))?;
 
-    println!("   🔑 Backend address: {}", backend_address);
+    info!("  Backend address: {}", backend_address);
 
-    // Mock swap output (for testing, use same amount as input)
-    let output_amount = decrypted.total_amount;
-    println!("   💱 Mock swap: {} MIST → {} MIST", decrypted.total_amount, output_amount);
+    // Parse amounts
+    let input_amount: u64 = details.input_amount.parse()?;
 
-    // TODO: Call actual Cetus swap here
+    // For mock: output = input (no actual swap, just pass through)
+    // In production, would call Cetus DEX here
+    let output_amount = input_amount;
+    let remainder_amount = 0u64; // No remainder for now
 
-    // Encrypt output amount with SEAL
-    println!("   🔐 Encrypting output amount with SEAL...");
-    let encrypted_output = super::seal_encryption::encrypt_amount(output_amount, &decrypted.vault_id)?;
+    info!("  Mock swap: {} -> {} (1:1)", input_amount, output_amount);
 
-    // Build PTB for execute_swap_sui
-    let mut ptb = ProgrammableTransactionBuilder::new();
+    // Parse addresses
+    let output_stealth = SuiAddress::from_str(&details.output_stealth)?;
+    let remainder_stealth = SuiAddress::from_str(&details.remainder_stealth)?;
 
-    // Get all object IDs
-    use sui_sdk::types::base_types::ObjectID;
-    let queue_id = ObjectID::from_hex_literal(&super::SEAL_CONFIG.intent_queue_id.to_string())?;
-    let intent_id = ObjectID::from_hex_literal(&decrypted.intent_id)?;
-    let vault_id = ObjectID::from_hex_literal(&decrypted.vault_id)?;
+    // Parse nullifier (hex string to bytes)
+    let nullifier_bytes = if details.nullifier.starts_with("0x") {
+        hex::decode(&details.nullifier[2..])?
+    } else {
+        hex::decode(&details.nullifier)?
+    };
 
-    // Get pool ID from config
-    let pool_id_str = std::fs::read_to_string("/Users/nikola/Developer/hackathon/mist-protocol/backend/src/apps/mist-protocol/seal_config.yaml")?;
-    let pool_id_line = pool_id_str.lines()
-        .find(|l| l.contains("liquidity_pool_id"))
-        .ok_or_else(|| anyhow::anyhow!("liquidity_pool_id not found"))?;
-    let pool_id_hex = pool_id_line.split(':').nth(1)
-        .ok_or_else(|| anyhow::anyhow!("Invalid pool_id format"))?
-        .trim().trim_matches('"');
-    let pool_id = ObjectID::from_hex_literal(pool_id_hex)?;
+    // Get object IDs
+    let registry_id = ObjectID::from_hex_literal(&SEAL_CONFIG.registry_id.to_string())?;
+    let pool_id = ObjectID::from_hex_literal(&SEAL_CONFIG.pool_id.to_string())?;
+    let intent_id = ObjectID::from_hex_literal(&intent.id)?;
+    let package_id = ObjectID::from_hex_literal(&SEAL_CONFIG.package_id.to_string())?;
 
-    // Query object versions
-    let intent_obj = sui_client.read_api()
-        .get_object_with_options(intent_id, SuiObjectDataOptions::new().with_owner())
+    // Query objects to get versions
+    let registry_obj = sui_client
+        .read_api()
+        .get_object_with_options(registry_id, SuiObjectDataOptions::new().with_owner())
         .await?
-        .data.ok_or_else(|| anyhow::anyhow!("Intent not found"))?;
+        .data
+        .ok_or_else(|| anyhow::anyhow!("Registry not found"))?;
 
-    // println!("   🔍 Intent owner: {:?}", intent_obj.owner);
-
-    let vault_obj = sui_client.read_api()
-        .get_object_with_options(vault_id, SuiObjectDataOptions::new().with_owner())
-        .await?
-        .data.ok_or_else(|| anyhow::anyhow!("Vault not found"))?;
-
-    let pool_obj = sui_client.read_api()
+    let pool_obj = sui_client
+        .read_api()
         .get_object_with_options(pool_id, SuiObjectDataOptions::new().with_owner())
         .await?
-        .data.ok_or_else(|| anyhow::anyhow!("Pool not found"))?;
+        .data
+        .ok_or_else(|| anyhow::anyhow!("Pool not found"))?;
 
-    let queue_obj = sui_client.read_api()
-        .get_object_with_options(queue_id, SuiObjectDataOptions::new().with_owner())
+    let intent_obj = sui_client
+        .read_api()
+        .get_object_with_options(intent_id, SuiObjectDataOptions::new().with_owner())
         .await?
-        .data.ok_or_else(|| anyhow::anyhow!("Queue not found"))?;
+        .data
+        .ok_or_else(|| anyhow::anyhow!("Intent not found"))?;
 
     // Get shared object versions
-    let queue_version = match queue_obj.owner {
+    let registry_version = match registry_obj.owner {
         Some(sui_sdk::types::object::Owner::Shared { initial_shared_version }) => initial_shared_version,
-        _ => anyhow::bail!("Queue is not shared"),
-    };
-
-    let intent_version = match intent_obj.owner {
-        Some(sui_sdk::types::object::Owner::Shared { initial_shared_version }) => initial_shared_version,
-        _ => anyhow::bail!("Intent is not shared"),
-    };
-
-    let vault_version = match vault_obj.owner {
-        Some(sui_sdk::types::object::Owner::Shared { initial_shared_version }) => initial_shared_version,
-        _ => anyhow::bail!("Vault is not shared"),
+        _ => anyhow::bail!("Registry is not shared"),
     };
 
     let pool_version = match pool_obj.owner {
@@ -119,39 +114,31 @@ pub async fn execute_swap_mock(
         _ => anyhow::bail!("Pool is not shared"),
     };
 
+    let intent_version = match intent_obj.owner {
+        Some(sui_sdk::types::object::Owner::Shared { initial_shared_version }) => initial_shared_version,
+        _ => anyhow::bail!("Intent is not shared"),
+    };
+
     // Get backend's SUI coins for gas
-    let sui_coins = sui_client.coin_read_api()
+    let sui_coins = sui_client
+        .coin_read_api()
         .get_coins(backend_address, Some("0x2::sui::SUI".to_string()), None, None)
         .await?;
 
     if sui_coins.data.is_empty() {
-        anyhow::bail!("Backend has no SUI coins");
+        anyhow::bail!("Backend has no SUI coins for gas");
     }
 
     let gas_coin = &sui_coins.data[0];
-    println!("   💰 Using SUI coin {} with balance {}", gas_coin.coin_object_id, gas_coin.balance);
+    info!("  Gas coin: {} ({})", gas_coin.coin_object_id, gas_coin.balance);
 
-    // Split the exact output amount from GasCoin
-    let split_amount_arg = ptb.pure(output_amount)?;
-    ptb.command(Command::SplitCoins(Argument::GasCoin, vec![split_amount_arg]));
-    let split_coin_result = Argument::Result(0);
+    // Build PTB
+    let mut ptb = ProgrammableTransactionBuilder::new();
 
-    // Build arguments for execute_swap_sui
-    let queue_arg = ptb.obj(ObjectArg::SharedObject {
-        id: queue_id,
-        initial_shared_version: queue_version,
-        mutability: SharedObjectMutability::Mutable,
-    })?;
-
-    let intent_arg = ptb.obj(ObjectArg::SharedObject {
-        id: intent_id,
-        initial_shared_version: intent_version,
-        mutability: SharedObjectMutability::Mutable,
-    })?;
-
-    let vault_arg = ptb.obj(ObjectArg::SharedObject {
-        id: vault_id,
-        initial_shared_version: vault_version,
+    // Arguments for execute_swap
+    let registry_arg = ptb.obj(ObjectArg::SharedObject {
+        id: registry_id,
+        initial_shared_version: registry_version,
         mutability: SharedObjectMutability::Mutable,
     })?;
 
@@ -161,33 +148,33 @@ pub async fn execute_swap_mock(
         mutability: SharedObjectMutability::Mutable,
     })?;
 
-    // Ticket IDs consumed
-    let ticket_ids: Vec<u64> = decrypted.ticket_amounts.iter().map(|(id, _)| *id).collect();
-    let ticket_ids_arg = ptb.pure(ticket_ids)?;
+    let intent_arg = ptb.obj(ObjectArg::SharedObject {
+        id: intent_id,
+        initial_shared_version: intent_version,
+        mutability: SharedObjectMutability::Mutable,
+    })?;
 
-    // Encrypted output (this is already Vec<u8>, pass directly)
-    let encrypted_arg = ptb.pure(encrypted_output)?;
+    let nullifier_arg = ptb.pure(nullifier_bytes.clone())?;
+    let output_amount_arg = ptb.pure(output_amount)?;
+    let output_stealth_arg = ptb.pure(output_stealth)?;
+    let remainder_amount_arg = ptb.pure(remainder_amount)?;
+    let remainder_stealth_arg = ptb.pure(remainder_stealth)?;
 
-    // From amount
-    let from_amount_arg = ptb.pure(decrypted.total_amount)?;
-
-    // Call execute_swap_sui
-    let package_id = ObjectID::from_hex_literal(&super::SEAL_CONFIG.package_id.to_string())?;
-
+    // Call execute_swap
     ptb.command(Command::move_call(
         package_id,
         Identifier::new("mist_protocol")?,
-        Identifier::new("execute_swap_sui")?,
+        Identifier::new("execute_swap")?,
         vec![],
         vec![
-            queue_arg,
-            intent_arg,
-            vault_arg,
+            registry_arg,
             pool_arg,
-            split_coin_result,
-            ticket_ids_arg,
-            encrypted_arg,
-            from_amount_arg,
+            intent_arg,
+            nullifier_arg,
+            output_amount_arg,
+            output_stealth_arg,
+            remainder_amount_arg,
+            remainder_stealth_arg,
         ],
     ));
 
@@ -204,15 +191,15 @@ pub async fn execute_swap_mock(
         gas_price,
     );
 
-    // Sign transaction via HTTP signing service
+    // Sign via tx-signer service
     let tx_bytes = bcs::to_bytes(&tx_data)?;
     let tx_b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &tx_bytes);
 
-    println!("   🔐 Calling signing service...");
+    info!("  Calling signing service...");
 
-    // Call the signing service (tx-signer on port 4000)
     let client = reqwest::Client::new();
-    let response = client.post("http://127.0.0.1:4000/sign")
+    let response = client
+        .post("http://127.0.0.1:4000/sign")
         .json(&serde_json::json!({
             "address": backend_address.to_string(),
             "tx_data_b64": tx_b64
@@ -223,22 +210,23 @@ pub async fn execute_swap_mock(
     match response {
         Ok(resp) if resp.status().is_success() => {
             let sign_response: serde_json::Value = resp.json().await?;
-            let signature = sign_response["signature"].as_str()
+            let signature = sign_response["signature"]
+                .as_str()
                 .ok_or_else(|| anyhow::anyhow!("No signature in response"))?;
 
-            println!("   ✅ Transaction signed successfully!");
-            println!("   📝 Signature: {}...", &signature[..40.min(signature.len())]);
+            info!("  Transaction signed");
 
-            // Now execute the signed transaction
-            println!("   🚀 Executing signed transaction on-chain...");
+            // Execute the signed transaction
+            info!("  Executing on-chain...");
 
-            // Use sui client execute-signed-tx
             let exec_output = std::process::Command::new("sui")
                 .args(&[
                     "client",
                     "execute-signed-tx",
-                    "--tx-bytes", &tx_b64,
-                    "--signatures", signature,
+                    "--tx-bytes",
+                    &tx_b64,
+                    "--signatures",
+                    signature,
                 ])
                 .output()?;
 
@@ -246,10 +234,7 @@ pub async fn execute_swap_mock(
             let stderr = String::from_utf8_lossy(&exec_output.stderr);
 
             if exec_output.status.success() {
-                println!("   ✅ Transaction executed successfully!");
-                println!("{}", stdout);
-
-                // Try to extract transaction digest from output
+                // Extract transaction digest
                 let digest = stdout
                     .lines()
                     .find(|line| line.contains("Transaction Digest") || line.contains("digest"))
@@ -257,28 +242,47 @@ pub async fn execute_swap_mock(
                     .map(|s| s.trim().to_string())
                     .unwrap_or_else(|| "unknown".to_string());
 
-                Ok(digest)
+                info!("  Transaction executed: {}", digest);
+
+                // Compute nullifier hash for result (use blake2b like the contract)
+                use fastcrypto::hash::{Blake2b256, HashFunction};
+                let nullifier_hash = hex::encode(Blake2b256::digest(&nullifier_bytes));
+
+                Ok(SwapExecutionResult {
+                    success: true,
+                    intent_id: intent.id.clone(),
+                    nullifier_hash,
+                    output_amount,
+                    remainder_amount,
+                    output_stealth: details.output_stealth.clone(),
+                    remainder_stealth: details.remainder_stealth.clone(),
+                    tx_digest: Some(digest),
+                    error: None,
+                })
             } else {
-                println!("   ❌ Transaction execution failed!");
-                println!("   STDOUT: {}", stdout);
-                println!("   STDERR: {}", stderr);
-                anyhow::bail!("Failed to execute transaction: {} {}", stdout, stderr);
+                anyhow::bail!("Transaction failed: {} {}", stdout, stderr)
             }
         }
         Ok(resp) => {
             let status = resp.status();
-            let error_text = resp.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            anyhow::bail!("Signing service error ({}): {}", status, error_text);
+            let error_text = resp.text().await.unwrap_or_default();
+            anyhow::bail!("Signing service error ({}): {}", status, error_text)
         }
         Err(e) => {
-            println!("   ❌ Failed to connect to signing service!");
-            println!("   Make sure tx-signer is running: cd tx-signer && cargo run");
-            anyhow::bail!("Signing service unreachable: {}", e);
+            anyhow::bail!(
+                "Signing service unreachable (make sure tx-signer is running): {}",
+                e
+            )
         }
     }
 }
 
 #[cfg(not(feature = "mist-protocol"))]
-pub async fn execute_swap_mock(_decrypted: &DecryptedSwapIntent, _sui_client: &SuiClient, _state: &AppState) -> Result<String> {
+pub async fn execute_swap_v2(
+    _intent: &SwapIntentObject,
+    _details: &DecryptedSwapDetails,
+    _sui_client: &SuiClient,
+    _state: &AppState,
+) -> Result<SwapExecutionResult> {
     Err(anyhow::anyhow!("mist-protocol feature not enabled"))
 }

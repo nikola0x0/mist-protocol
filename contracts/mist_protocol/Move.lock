@@ -2,58 +2,67 @@
 # This file should be checked in.
 
 [move]
-version = 4
+version = 3
+manifest_digest = "5FC7C6DC32D04F1F20986C555766BB3881BD8CFF6571661BC0B6005DA5EF4D1F"
+deps_digest = "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600"
+dependencies = [
+  { id = "Sui", name = "Sui" },
+  { id = "enclave", name = "enclave" },
+]
+
+[[move.package]]
+id = "MoveStdlib"
+source = { git = "https://github.com/MystenLabs/sui.git", rev = "testnet-v1.61.2", subdir = "crates/sui-framework/packages/move-stdlib" }
+
+[[move.package]]
+id = "Sui"
+source = { git = "https://github.com/MystenLabs/sui.git", rev = "testnet-v1.61.2", subdir = "crates/sui-framework/packages/sui-framework" }
+
+dependencies = [
+  { id = "MoveStdlib", name = "MoveStdlib" },
+]
 
 [pinned.testnet.MoveStdlib]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "a14d9e8ddadfcea837de46b43d0b72a289320afb" }
+source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "6c229fe6c04fb21ec98751c798e57e9a00e028e2" }
 use_environment = "testnet"
 manifest_digest = "C4FE4C91DE74CBF223B2E380AE40F592177D21870DC2D7EB6227D2D694E05363"
 deps = {}
 
-[pinned.testnet.MoveStdlib_1]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "a4185da5659d8d299d34e1bb2515ff1f7e32a20a" }
-use_environment = "testnet"
-manifest_digest = "C4FE4C91DE74CBF223B2E380AE40F592177D21870DC2D7EB6227D2D694E05363"
-deps = {}
+[[move.package]]
+id = "enclave"
+source = { local = "../enclave" }
+
+dependencies = [
+  { id = "Sui", name = "Sui" },
+]
+
+[move.toolchain-version]
+compiler-version = "1.61.2"
+edition = "2024.beta"
+flavor = "sui"
 
 [pinned.testnet.Sui]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "a14d9e8ddadfcea837de46b43d0b72a289320afb" }
+source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "6c229fe6c04fb21ec98751c798e57e9a00e028e2" }
 use_environment = "testnet"
 manifest_digest = "7AFB66695545775FBFBB2D3078ADFD084244D5002392E837FDE21D9EA1C6D01C"
 deps = { MoveStdlib = "MoveStdlib" }
 
-[pinned.testnet.Sui_1]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "a4185da5659d8d299d34e1bb2515ff1f7e32a20a" }
-use_environment = "testnet"
-manifest_digest = "7AFB66695545775FBFBB2D3078ADFD084244D5002392E837FDE21D9EA1C6D01C"
-deps = { MoveStdlib = "MoveStdlib_1" }
-
 [pinned.testnet.enclave]
 source = { local = "../enclave" }
 use_environment = "testnet"
-manifest_digest = "D5E0062F1EDD33A59E172DBEA00C2CA9A955E2A8A7CE04920A2CB4C54434AC54"
+manifest_digest = "65066A1AFA6718772BD68F6AFE27843F2371E14C4CF891FC7DADDFA586DABF89"
 deps = { Sui = "Sui" }
 
 [pinned.testnet.mist_protocol]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "1B29C0FC3950F1B4FB037995741EAAC54A74DD12E6B28A610C934E906739119F"
-deps = { Sui = "Sui", enclave = "enclave", usdc = "usdc" }
+manifest_digest = "671791616B1D5F7ED5E89D1888E90FC8390DBDD4ECCF15F8676983076CE2F778"
+deps = { Sui = "Sui", enclave = "enclave" }
 
-[pinned.testnet.stablecoin]
-source = { git = "https://github.com/circlefin/stablecoin-sui.git", subdir = "packages/stablecoin", rev = "d0904aec1bbe46b38f811654070032363a5a2966" }
-use_environment = "testnet"
-manifest_digest = "CA8A8C98A033B13B98F0E9D48DA2051BB8943A549EE1F9C080A84F7B9FAF0F0C"
-deps = { Sui = "Sui_1", sui_extensions = "sui_extensions" }
+[env]
 
-[pinned.testnet.sui_extensions]
-source = { git = "https://github.com/circlefin/stablecoin-sui.git", subdir = "packages/sui_extensions", rev = "d0904aec1bbe46b38f811654070032363a5a2966" }
-use_environment = "testnet"
-manifest_digest = "1AD09726AC05F000A00A1E0CB700C2036E67E05ACD42D402DD6B54FF2EFBB1E9"
-deps = { Sui = "Sui_1" }
-
-[pinned.testnet.usdc]
-source = { git = "https://github.com/circlefin/stablecoin-sui.git", subdir = "packages/usdc", rev = "d0904aec1bbe46b38f811654070032363a5a2966" }
-use_environment = "testnet"
-manifest_digest = "ABCB372881B4AA0562116087311A98C504CD81780C15E124BB70CD13E5A21CE4"
-deps = { Sui = "Sui_1", stablecoin = "stablecoin", sui_extensions = "sui_extensions" }
+[env.testnet]
+chain-id = "4c78adac"
+original-published-id = "0x6ebdc43fa4bedf4034ae596fab59ca6da58337867fa7d7450c0f81877030a245"
+latest-published-id = "0x6ebdc43fa4bedf4034ae596fab59ca6da58337867fa7d7450c0f81877030a245"
+published-version = "1"
