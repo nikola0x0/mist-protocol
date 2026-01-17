@@ -60,6 +60,6 @@ socat VSOCK-LISTEN:3000,reuseaddr,fork TCP:localhost:3000 &
 
 # Wait for traffic forwarders to be ready
 echo "Waiting for network forwarders to initialize..."
-sleep 5
+sleep 15
 
 /nautilus-server
