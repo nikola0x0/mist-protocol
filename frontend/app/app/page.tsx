@@ -5,11 +5,12 @@ import Image from "next/image";
 import { ConnectButton } from "@/components/ConnectButton";
 import { DepositCard } from "@/components/DepositCard";
 import { SwapCard } from "@/components/SwapCard";
+import { StealthOutputsCard } from "@/components/StealthOutputsCard";
 import { useCurrentAccount } from "@mysten/dapp-kit";
 
 export default function AppPage() {
   const account = useCurrentAccount();
-  const [activeTab, setActiveTab] = useState<"deposit" | "swap">("deposit");
+  const [activeTab, setActiveTab] = useState<"deposit" | "swap" | "claim">("deposit");
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -46,10 +47,11 @@ export default function AppPage() {
           {[
             { key: "deposit", label: "Deposit" },
             { key: "swap", label: "Swap" },
+            { key: "claim", label: "Claim" },
           ].map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key as "deposit" | "swap")}
+              onClick={() => setActiveTab(tab.key as "deposit" | "swap" | "claim")}
               className={`glass-button px-8 py-3 font-medium font-tektur transition-all ${
                 activeTab === tab.key
                   ? "border-white/20 text-white bg-white/5"
@@ -74,6 +76,7 @@ export default function AppPage() {
         <div className="space-y-6">
           {activeTab === "deposit" && <DepositCard />}
           {activeTab === "swap" && <SwapCard />}
+          {activeTab === "claim" && <StealthOutputsCard />}
         </div>
 
         {/* Privacy Info */}

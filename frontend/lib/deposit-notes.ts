@@ -7,7 +7,8 @@
 
 import { SealClient, EncryptedObject } from "@mysten/seal";
 import { SuiClient } from "@mysten/sui/client";
-import { toHex } from "@mysten/sui/utils";
+import { toHex, fromHex } from "@mysten/sui/utils";
+import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 
 // Default SEAL key servers for testnet
 const DEFAULT_KEY_SERVERS = {
@@ -106,18 +107,33 @@ export function generateNullifier(): string {
 /**
  * Generate a one-time stealth address
  * Used for receiving swap outputs unlinkably
+ *
+ * Creates a random Ed25519 keypair and derives the Sui address from it.
+ * The private key is stored so we can later sign transactions to spend coins.
  */
 export function generateStealthAddress(): StealthAddress {
-  // Generate random 32-byte private key
-  const privateKeyBytes = crypto.getRandomValues(new Uint8Array(32));
-  const privateKey = toHex(privateKeyBytes);
+  // Generate random 32-byte seed for the keypair
+  const seedBytes = crypto.getRandomValues(new Uint8Array(32));
 
-  // For Sui, address is derived from public key
-  // Simplified: use hash of private key as address (in production, derive properly)
-  const addressBytes = crypto.getRandomValues(new Uint8Array(32));
-  const address = toHex(addressBytes);
+  // Create Ed25519 keypair from the seed
+  const keypair = Ed25519Keypair.fromSecretKey(seedBytes);
+
+  // Get the Sui address derived from the public key
+  const address = keypair.toSuiAddress();
+
+  // Store the seed as the private key (hex encoded)
+  const privateKey = toHex(seedBytes);
 
   return { address, privateKey };
+}
+
+/**
+ * Recreate keypair from stored stealth private key
+ * Used when signing transactions to spend from stealth addresses
+ */
+export function getStealthKeypair(stealth: StealthAddress): Ed25519Keypair {
+  const seedBytes = fromHex(stealth.privateKey);
+  return Ed25519Keypair.fromSecretKey(seedBytes);
 }
 
 // ============ SEAL ENCRYPTION ============
