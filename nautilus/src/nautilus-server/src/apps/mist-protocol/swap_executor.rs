@@ -191,90 +191,91 @@ pub async fn execute_swap_v2(
         gas_price,
     );
 
-    // Sign via tx-signer service
+    // Sign transaction directly using SDK (no external tx-signer needed)
+    info!("  Signing transaction...");
+
+    use sui_sdk::rpc_types::SuiTransactionBlockResponseOptions;
+    use sui_types::crypto::{Signature, ToFromBytes as SuiToFromBytes};
+    use fastcrypto::hash::{Blake2b256, HashFunction};
+    use fastcrypto::traits::{Signer, ToFromBytes, KeyPair};
+
+    // Create intent message for signing (IntentScope::TransactionData = 0)
     let tx_bytes = bcs::to_bytes(&tx_data)?;
-    let tx_b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &tx_bytes);
+    let intent_message = {
+        let mut data = vec![0, 0, 0]; // TransactionData intent: [scope=0, version=0, app_id=0]
+        data.extend_from_slice(&tx_bytes);
+        data
+    };
 
-    info!("  Calling signing service...");
+    // Hash with Blake2b256
+    let tx_digest_bytes = Blake2b256::digest(&intent_message);
 
-    let client = reqwest::Client::new();
-    let response = client
-        .post("http://127.0.0.1:4000/sign")
-        .json(&serde_json::json!({
-            "address": backend_address.to_string(),
-            "tx_data_b64": tx_b64
-        }))
-        .send()
-        .await;
+    // Create Ed25519 keypair for signing
+    let ed25519_kp = fastcrypto::ed25519::Ed25519KeyPair::from(
+        fastcrypto::ed25519::Ed25519PrivateKey::from_bytes(&key_bytes)
+            .map_err(|e| anyhow::anyhow!("Invalid key bytes: {:?}", e))?
+    );
 
-    match response {
-        Ok(resp) if resp.status().is_success() => {
-            let sign_response: serde_json::Value = resp.json().await?;
-            let signature = sign_response["signature"]
-                .as_str()
-                .ok_or_else(|| anyhow::anyhow!("No signature in response"))?;
+    // Sign the digest
+    let signature = ed25519_kp.sign(tx_digest_bytes.as_ref());
 
-            info!("  Transaction signed");
+    // Build the signature in Sui format: flag || sig || pubkey
+    let pub_key = ed25519_kp.public();
+    let pub_key_bytes: &[u8] = pub_key.as_ref();
 
-            // Execute the signed transaction
-            info!("  Executing on-chain...");
+    let mut sig_bytes = vec![0x00]; // Ed25519 flag
+    sig_bytes.extend_from_slice(signature.as_ref());
+    sig_bytes.extend_from_slice(pub_key_bytes);
 
-            let exec_output = std::process::Command::new("sui")
-                .args(&[
-                    "client",
-                    "execute-signed-tx",
-                    "--tx-bytes",
-                    &tx_b64,
-                    "--signatures",
-                    signature,
-                ])
-                .output()?;
+    // Create Sui Signature
+    let sui_signature = <Signature as SuiToFromBytes>::from_bytes(&sig_bytes)
+        .map_err(|e| anyhow::anyhow!("Failed to create Signature: {:?}", e))?;
 
-            let stdout = String::from_utf8_lossy(&exec_output.stdout);
-            let stderr = String::from_utf8_lossy(&exec_output.stderr);
+    info!("  Transaction signed");
 
-            if exec_output.status.success() {
-                // Extract transaction digest
-                let digest = stdout
-                    .lines()
-                    .find(|line| line.contains("Transaction Digest") || line.contains("digest"))
-                    .and_then(|line| line.split(':').nth(1))
-                    .map(|s| s.trim().to_string())
-                    .unwrap_or_else(|| "unknown".to_string());
+    // Execute using SDK (no CLI needed)
+    info!("  Executing on-chain via SDK...");
 
-                info!("  Transaction executed: {}", digest);
+    // Create Transaction from TransactionData + signature
+    let transaction = sui_types::transaction::Transaction::from_data(
+        tx_data,
+        vec![sui_signature],
+    );
 
-                // Compute nullifier hash for result (use blake2b like the contract)
-                use fastcrypto::hash::{Blake2b256, HashFunction};
-                let nullifier_hash = hex::encode(Blake2b256::digest(&nullifier_bytes));
+    let response = sui_client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            transaction,
+            SuiTransactionBlockResponseOptions::full_content(),
+            None, // Use default execution mode
+        )
+        .await?;
 
-                Ok(SwapExecutionResult {
-                    success: true,
-                    intent_id: intent.id.clone(),
-                    nullifier_hash,
-                    output_amount,
-                    remainder_amount,
-                    output_stealth: details.output_stealth.clone(),
-                    remainder_stealth: details.remainder_stealth.clone(),
-                    tx_digest: Some(digest),
-                    error: None,
-                })
-            } else {
-                anyhow::bail!("Transaction failed: {} {}", stdout, stderr)
-            }
-        }
-        Ok(resp) => {
-            let status = resp.status();
-            let error_text = resp.text().await.unwrap_or_default();
-            anyhow::bail!("Signing service error ({}): {}", status, error_text)
-        }
-        Err(e) => {
-            anyhow::bail!(
-                "Signing service unreachable (make sure tx-signer is running): {}",
-                e
-            )
+    let digest = response.digest.to_string();
+    info!("  Transaction executed: {}", digest);
+
+    // Check if transaction was successful
+    if let Some(effects) = &response.effects {
+        use sui_sdk::rpc_types::SuiTransactionBlockEffectsAPI;
+        if effects.status().is_err() {
+            anyhow::bail!("Transaction failed: {:?}", effects.status());
         }
     }
+
+    // Compute nullifier hash for result (use blake2b like the contract)
+    let nullifier_hash = hex::encode(Blake2b256::digest(&nullifier_bytes));
+
+    Ok(SwapExecutionResult {
+        success: true,
+        intent_id: intent.id.clone(),
+        nullifier_hash,
+        output_amount,
+        remainder_amount,
+        output_stealth: details.output_stealth.clone(),
+        remainder_stealth: details.remainder_stealth.clone(),
+        tx_digest: Some(digest),
+        error: None,
+    })
 }
 
 #[cfg(not(feature = "mist-protocol"))]

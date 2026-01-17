@@ -18,7 +18,7 @@ const config: Config = {
       },
       fontFamily: {
         tektur: ["var(--font-tektur)"],
-        "anonymous-pro": ["var(--font-anonymous-pro)"],
+        inter: ["var(--font-inter)"],
       },
       backdropBlur: {
         xs: "2px",

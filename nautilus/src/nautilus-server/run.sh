@@ -22,8 +22,9 @@ busybox ip link set dev lo up
 
 # Add a hosts record, pointing target site calls to local loopback
 echo "127.0.0.1   localhost" > /etc/hosts
-echo "127.0.0.64   api.twitter.com" >> /etc/hosts
-echo "127.0.0.65   fullnode.testnet.sui.io" >> /etc/hosts
+echo "127.0.0.64   fullnode.testnet.sui.io" >> /etc/hosts
+echo "127.0.0.65   seal-key-server-testnet-1.mystenlabs.com" >> /etc/hosts
+echo "127.0.0.66   seal-key-server-testnet-2.mystenlabs.com" >> /etc/hosts
 
 
 
@@ -44,9 +45,13 @@ echo "$JSON_RESPONSE" | jq -r 'to_entries[] | "\(.key)=\(.value)"' > /tmp/kvpair
 # There is a vsock-proxy that listens for this and forwards to the respective domains
 
 # == ATTENTION: code should be generated here that added all hosts to forward traffic ===
-# Traffic-forwarder-block
+# Traffic-forwarder-block (Mist Protocol endpoints)
+# Sui RPC
 python3 /traffic_forwarder.py 127.0.0.64 443 3 8101 &
+# SEAL Key Server 1
 python3 /traffic_forwarder.py 127.0.0.65 443 3 8102 &
+# SEAL Key Server 2
+python3 /traffic_forwarder.py 127.0.0.66 443 3 8103 &
 
 
 

@@ -3,46 +3,82 @@
 @tailwind utilities;
 
 :root {
-  --background: #000000;
+  --background: #050505;
   --foreground: #ffffff;
   --card: rgba(255, 255, 255, 0.03);
-  --card-hover: rgba(255, 255, 255, 0.05);
-  --border: rgba(255, 255, 255, 0.1);
-  --glass-border: rgba(255, 255, 255, 0.15);
-  --glow-primary: rgba(255, 255, 255, 0.1);
-  --glow-secondary: rgba(255, 255, 255, 0.05);
+  --card-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glow-primary: rgba(255, 255, 255, 0.15); /* Neutral white glow */
+  --glow-secondary: rgba(255, 255, 255, 0.1); /* Neutral white glow */
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: var(--font-anonymous-pro), "Courier New", monospace;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--background);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.2);
 }
 
-/* Glassmorphism Card styles */
+/* =========================================
+   Glassmorphism Utilities
+   ========================================= */
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(4px);
+  transition: all 0.2s ease;
+}
+
+.glass-input:focus {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Existing .card for backward compatibility/landing page */
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 0;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   transition: all 0.3s ease;
@@ -55,38 +91,97 @@ body {
 
 /* Glass button */
 .glass-button {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   transition: all 0.3s ease;
   font-family: var(--font-tektur), sans-serif;
 }
 
 .glass-button:hover {
-  background: var(--card-hover);
-  border-color: var(--glass-border);
-  box-shadow: 0 0 20px var(--glow-primary);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
-/* Input styles - only for components, not for mist-flow-test */
+/* =========================================
+   Animated Light Beams Background
+   ========================================= */
+
+.light-beams-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.light-beam {
+  height: 100vh;
+  width: 0;
+  top: 0;
+  position: absolute;
+  transform: rotate(15deg);
+  transform-origin: top right;
+  box-shadow:
+    0 0 200px 100px rgba(120, 180, 255, 0.08),
+    0 0 400px 200px rgba(80, 140, 220, 0.04);
+  animation: slide-beam 90s linear infinite;
+}
+
+/* Only 4 beams for a minimal, soft effect */
+.light-beam:nth-child(1) { animation-delay: -22.5s; }
+.light-beam:nth-child(2) { animation-delay: -45s; }
+.light-beam:nth-child(3) { animation-delay: -67.5s; }
+.light-beam:nth-child(4) { animation-delay: -90s; }
+.light-beam:nth-child(n+5) { display: none; }
+
+@keyframes slide-beam {
+  from {
+    right: -25vw;
+  }
+  to {
+    right: 125vw;
+  }
+}
+
+/* Soft ambient edge glows */
+.light-edge-horizontal {
+  box-shadow: 0 0 60vh 50vh rgba(255, 255, 255, 0.04);
+  width: 100vw;
+  height: 0;
+  bottom: 0;
+  left: 0;
+  position: absolute;
+  pointer-events: none;
+}
+
+.light-edge-vertical {
+  box-shadow: 0 0 40vw 30vw rgba(255, 255, 255, 0.03);
+  width: 0;
+  height: 100vh;
+  bottom: 0;
+  left: 0;
+  position: absolute;
+  pointer-events: none;
+}
+
+/* =========================================
+   Utilities
+   ========================================= */
+
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-/* Button animations */
-button {
-  transition: all 0.3s ease;
-}
-
 button:active {
   transform: scale(0.98);
 }
 
-/* Gradient text with glow */
 .gradient-text {
   background: linear-gradient(
     180deg,
@@ -98,31 +193,6 @@ button:active {
   background-clip: text;
   text-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
   font-family: var(--font-tektur), sans-serif;
-}
-
-/* Glowing effect */
-.glow {
-  box-shadow: 0 0 30px var(--glow-primary), 0 0 60px var(--glow-secondary);
-  animation: pulse-glow 3s ease-in-out infinite;
-}
-
-@keyframes pulse-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 20px var(--glow-primary), 0 0 40px var(--glow-secondary);
-  }
-  50% {
-    box-shadow: 0 0 30px var(--glow-primary), 0 0 60px var(--glow-secondary);
-  }
-}
-
-/* Radial gradient background */
-.radial-gradient-bg {
-  background: radial-gradient(
-    circle at 50% 30%,
-    rgba(255, 255, 255, 0.05) 0%,
-    transparent 50%
-  );
 }
 
 /* Animations */
@@ -142,19 +212,30 @@ button:active {
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .animate-fade-in {
   animation: fadeIn 0.8s ease-out;
 }
 
-/* Hover Card Effect - Hyperplexed Style Adapted for Mist - Landing Page Only */
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in-right {
+  animation: fadeInRight 0.3s ease-out;
+}
+
+/* Landing Page Card (Legacy) */
 .card-track {
   height: 100%;
   width: 480px;
@@ -182,10 +263,6 @@ button:active {
   background: transparent !important;
 }
 
-.card-track .card:hover {
-  background: transparent !important;
-}
-
 .card-image {
   display: flex;
   align-items: center;
@@ -194,7 +271,7 @@ button:active {
   z-index: 4;
 }
 
-.card-gradient {
+.card-gradient, .card-corners {
   display: none;
 }
 
@@ -227,16 +304,12 @@ button:active {
     transparent 60%
   );
   scale: 4;
-  font-family: var(--font-anonymous-pro), "Courier New", monospace;
+  font-family: var(--font-inter), system-ui, sans-serif;
   padding: 100px;
 }
 
 .card-track .card:hover .card-letters {
   opacity: 1;
-}
-
-.card-corners {
-  display: none;
 }
 
 @media (max-width: 768px) {

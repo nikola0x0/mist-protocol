@@ -26,10 +26,15 @@ const DEFAULT_KEY_SERVERS = {
 /**
  * Deposit note stored locally by user
  * WARNING: If lost or stolen, funds can be lost/stolen!
+ *
+ * SECURITY: v2 requires wallet signature - nullifier alone is NOT enough to spend.
+ * Attacker needs BOTH nullifier (to find deposit) AND wallet private key (to sign).
  */
 export interface DepositNote {
   /** Random 32-byte nullifier (hex string) - reveals at swap time */
   nullifier: string;
+  /** Wallet address that owns this deposit (for signature verification) */
+  ownerAddress: string;
   /** Deposit amount in base units */
   amount: string;
   /** Token type */
@@ -44,6 +49,9 @@ export interface DepositNote {
 
 /**
  * Swap intent details to be SEAL encrypted
+ *
+ * SECURITY: v2 includes signature - TEE verifies against deposit's spendingPubKey.
+ * This prevents stolen nullifiers from being used without the spending key.
  */
 export interface SwapIntentDetails {
   /** The nullifier from the deposit note */
@@ -54,6 +62,8 @@ export interface SwapIntentDetails {
   outputStealth: string;
   /** One-time stealth address for remainder */
   remainderStealth: string;
+  /** Signature over (nullifier, inputAmount, outputStealth, remainderStealth) */
+  signature: string;
 }
 
 /**
@@ -136,6 +146,22 @@ export function getStealthKeypair(stealth: StealthAddress): Ed25519Keypair {
   return Ed25519Keypair.fromSecretKey(seedBytes);
 }
 
+// ============ INTENT SIGNING ============
+
+/**
+ * Create the message bytes that need to be signed for a swap intent
+ * Format: "mist_intent_v2:{nullifier}:{inputAmount}:{outputStealth}:{remainderStealth}"
+ */
+export function createIntentMessage(
+  nullifier: string,
+  inputAmount: string,
+  outputStealth: string,
+  remainderStealth: string
+): Uint8Array {
+  const message = `mist_intent_v2:${nullifier}:${inputAmount}:${outputStealth}:${remainderStealth}`;
+  return new TextEncoder().encode(message);
+}
+
 // ============ SEAL ENCRYPTION ============
 
 export interface SealConfig {
@@ -157,12 +183,24 @@ function generateEncryptionId(): string {
 }
 
 /**
- * SEAL encrypt deposit data (amount + nullifier)
+ * Encrypted deposit data format (v2 with owner for signature verification)
+ */
+export interface EncryptedDepositData {
+  amount: string;
+  nullifier: string;
+  ownerAddress: string; // For signature verification in TEE
+}
+
+/**
+ * SEAL encrypt deposit data (amount + nullifier + owner)
  * Only TEE can decrypt this
+ *
+ * SECURITY: ownerAddress is included so TEE can verify intent signatures
  */
 export async function encryptDepositData(
   amount: string,
   nullifier: string,
+  ownerAddress: string,
   config: SealConfig,
   suiClient: SuiClient
 ): Promise<string> {
@@ -171,6 +209,7 @@ export async function encryptDepositData(
   console.log("Encrypting deposit data:", {
     amount,
     nullifierPrefix: nullifier.substring(0, 10) + "...",
+    ownerAddress: ownerAddress.substring(0, 10) + "...",
     encryptionId: encryptionId.substring(0, 20) + "...",
   });
 
@@ -184,14 +223,14 @@ export async function encryptDepositData(
     verifyKeyServers: false,
   });
 
-  // Data format: JSON with amount and nullifier
-  const data = JSON.stringify({ amount, nullifier });
+  // Data format: JSON with amount, nullifier, and owner address
+  const data: EncryptedDepositData = { amount, nullifier, ownerAddress };
 
   const { encryptedObject } = await sealClient.encrypt({
     threshold: 2, // 2-of-3 key servers
     packageId: config.packageId,
     id: encryptionId,
-    data: new TextEncoder().encode(data),
+    data: new TextEncoder().encode(JSON.stringify(data)),
   });
 
   // Verify encryption
@@ -217,8 +256,11 @@ export async function encryptDepositData(
 }
 
 /**
- * SEAL encrypt swap intent details
+ * SEAL encrypt swap intent details (with signature)
  * Only TEE can decrypt this
+ *
+ * SECURITY: The signature proves the owner authorized this swap.
+ * TEE will verify signature against ownerAddress from the deposit.
  */
 export async function encryptSwapIntent(
   details: SwapIntentDetails,
@@ -231,7 +273,12 @@ export async function encryptSwapIntent(
     nullifierPrefix: details.nullifier.substring(0, 10) + "...",
     inputAmount: details.inputAmount,
     outputStealth: details.outputStealth.substring(0, 10) + "...",
+    hasSignature: !!details.signature,
   });
+
+  if (!details.signature) {
+    throw new Error("Signature is required for swap intent");
+  }
 
   const keyServers = DEFAULT_KEY_SERVERS[config.network];
   const sealClient = new SealClient({
@@ -379,6 +426,20 @@ export function loadStealthKeys(walletAddress: string): Array<{
   } catch {
     return [];
   }
+}
+
+/**
+ * Remove a stealth key pair by output address (wallet-scoped)
+ */
+export function removeStealthKeyPair(
+  walletAddress: string,
+  outputAddress: string
+): void {
+  if (typeof window === "undefined") return;
+  if (!walletAddress) return;
+  const keys = loadStealthKeys(walletAddress);
+  const filtered = keys.filter((k) => k.output.address !== outputAddress);
+  localStorage.setItem(getStealthStorageKey(walletAddress), JSON.stringify(filtered));
 }
 
 // ============ EXPORT/IMPORT (BACKUP) ============

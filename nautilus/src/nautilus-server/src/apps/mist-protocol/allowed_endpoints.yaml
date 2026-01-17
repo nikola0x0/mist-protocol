@@ -6,10 +6,8 @@
 - fullnode.mainnet.sui.io
 
 # SEAL key servers (for threshold decryption)
-# NOTE: Update these with actual SEAL server URLs when available
-- seal-key-server-1.example.com
-- seal-key-server-2.example.com
-- seal-key-server-3.example.com
+- seal-key-server-testnet-1.mystenlabs.com
+- seal-key-server-testnet-2.mystenlabs.com
 
 # DEX integration (Cetus)
 # NOTE: Add Cetus API endpoint if needed for price quotes
