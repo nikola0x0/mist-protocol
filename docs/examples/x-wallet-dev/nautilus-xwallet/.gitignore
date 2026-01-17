@@ -1,0 +1,48 @@
+# Environment & Secrets
+*.env
+.env.*
+user-data.sh
+trust-policy.json
+secrets-policy.json
+
+# Rust build artifacts
+/src/nautilus-server/target
+**/target/
+Cargo.lock
+
+# Move build artifacts
+/move/enclave/build
+/move/*/build
+**/build/
+
+# IDE & Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Test artifacts
+/out
+/target.env
+
+# AWS & Enclave
+*.pem
+*.key
+enclave.eif
+*.nsm
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Coverage & Profiling
+*.profraw
+coverage/
+lcov.info

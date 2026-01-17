@@ -1,0 +1,90 @@
+[package]
+name = "xwallet-backend"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "xwallet_backend"
+path = "src/lib.rs"
+
+[[bin]]
+name = "xwallet-backend"
+path = "src/main.rs"
+
+[[bin]]
+name = "xwallet-indexer"
+path = "src/bin/indexer.rs"
+
+[dependencies]
+# Web framework
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace", "cors", "timeout"] }
+tower_governor = "0.3"
+
+# Async runtime
+tokio = { version = "1.47", features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "macros", "migrate", "chrono", "json"] }
+home = "=0.5.9"  # Pin to version compatible with Rust 1.85
+
+# Redis
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# Sui SDK - using new sui-rust-sdk crates (same as smashblob)
+sui-sdk-types = { git = "https://github.com/mystenlabs/sui-rust-sdk", features = ["serde"], rev = "8eee97380cac1a1899d3cca427bde7ac906abdb9" }
+bcs = "0.1"
+
+# Crypto for signing (Ed25519)
+ed25519-dalek = "2.1"
+blake2 = "0.10"
+bech32 = "0.11"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Crypto
+hmac = "0.12"
+sha1 = "0.10"
+sha2 = "0.10"
+base64 = "0.21"
+hex = "0.4"
+
+# JWT
+jsonwebtoken = "9"
+
+# Config & env
+dotenvy = "0.15"
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Regex
+regex = "1"
+
+# URL encoding
+urlencoding = "2"
+
+# ngrok tunnel (for local webhook testing)
+ngrok = { version = "0.14", features = ["axum"], optional = true }
+
+[features]
+default = []
+ngrok = ["dep:ngrok"]
+
+[dev-dependencies]
