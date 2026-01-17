@@ -25,6 +25,7 @@ import {
   SwapIntentDetails,
   createIntentMessage,
 } from "../lib/deposit-notes";
+import { submitIntentViaRelayer } from "../lib/relayer";
 
 // ============ CONFIG ============
 
@@ -52,11 +53,16 @@ export interface UseDepositNotesReturn {
   refresh: () => void;
   /** Create a new deposit */
   deposit: (amountSui: string) => Promise<{ success: boolean; note?: DepositNote; error?: string }>;
-  /** Create a swap intent */
+  /** Create a swap intent (user signs tx directly) */
   createSwapIntent: (
     note: DepositNote,
     swapAmountSui: string
   ) => Promise<{ success: boolean; error?: string }>;
+  /** Create a swap intent via relayer (privacy mode - relayer submits tx) */
+  createSwapIntentViaRelayer: (
+    note: DepositNote,
+    swapAmountSui: string
+  ) => Promise<{ success: boolean; txDigest?: string; error?: string }>;
 }
 
 // ============ HOOK ============
@@ -309,6 +315,127 @@ export function useDepositNotes(): UseDepositNotesReturn {
     [currentAccount, walletAddress, signAndExecute, signPersonalMessage, suiClient, refresh]
   );
 
+  /**
+   * Create a swap intent via privacy relayer
+   *
+   * Same as createSwapIntent but the relayer submits the transaction instead
+   * of the user's wallet. This breaks the on-chain link between user and intent.
+   *
+   * Flow:
+   * 1. Sign intent message with wallet (proves ownership)
+   * 2. SEAL encrypt (same as direct mode)
+   * 3. Send to relayer API (relayer submits tx)
+   * 4. Save stealth keys locally
+   *
+   * Privacy: On-chain shows "Relayer → create_swap_intent" not "User → create_swap_intent"
+   */
+  const createSwapIntentViaRelayer = useCallback(
+    async (
+      note: DepositNote,
+      swapAmountSui: string
+    ): Promise<{ success: boolean; txDigest?: string; error?: string }> => {
+      if (!currentAccount) {
+        return { success: false, error: "Wallet not connected" };
+      }
+
+      if (note.spent) {
+        return { success: false, error: "Note already spent" };
+      }
+
+      // Verify the current wallet owns this deposit
+      if (note.ownerAddress && note.ownerAddress !== walletAddress) {
+        return {
+          success: false,
+          error: "This deposit belongs to a different wallet",
+        };
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const swapAmountMist = parseAmount(swapAmountSui, 9);
+        const depositAmount = BigInt(note.amount);
+        const swapAmount = BigInt(swapAmountMist);
+
+        if (swapAmount > depositAmount) {
+          return { success: false, error: "Swap amount exceeds deposit" };
+        }
+
+        // 1. Generate stealth addresses
+        const outputStealth = generateStealthAddress();
+        const remainderStealth = generateStealthAddress();
+
+        console.log("[Relayer Mode] Creating swap intent:", {
+          nullifierPrefix: note.nullifier.substring(0, 10) + "...",
+          swapAmount: swapAmountMist,
+          outputStealth: outputStealth.address.substring(0, 10) + "...",
+        });
+
+        // 2. Sign intent message with wallet (SECURITY: proves ownership)
+        const messageBytes = createIntentMessage(
+          note.nullifier,
+          swapAmountMist,
+          outputStealth.address,
+          remainderStealth.address
+        );
+
+        console.log("[Relayer Mode] Requesting wallet signature for intent...");
+        const { signature } = await signPersonalMessage({
+          message: messageBytes,
+        });
+
+        console.log("[Relayer Mode] Intent signed successfully");
+
+        // 3. SEAL encrypt swap details (including signature)
+        const swapDetails: SwapIntentDetails = {
+          nullifier: note.nullifier,
+          inputAmount: swapAmountMist,
+          outputStealth: outputStealth.address,
+          remainderStealth: remainderStealth.address,
+          signature: signature,
+        };
+
+        const encryptedDetails = await encryptSwapIntent(
+          swapDetails,
+          { packageId: PACKAGE_ID, network: NETWORK },
+          suiClient
+        );
+
+        // 4. Submit via relayer (NOT via user wallet)
+        console.log("[Relayer Mode] Submitting intent via relayer...");
+        const relayerResult = await submitIntentViaRelayer(
+          encryptedDetails,
+          "SUI",
+          "SUI" // SUI→SUI for now
+        );
+
+        if (!relayerResult.success) {
+          return { success: false, error: relayerResult.error || "Relayer submission failed" };
+        }
+
+        console.log("[Relayer Mode] Intent submitted:", relayerResult.txDigest);
+
+        // 5. Save stealth keys for scanning later (wallet-scoped)
+        saveStealthKeys(walletAddress, outputStealth, remainderStealth);
+
+        // Mark note as spent optimistically
+        markNoteSpent(walletAddress, note.nullifier);
+        refresh();
+
+        return { success: true, txDigest: relayerResult.txDigest };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : "Swap intent via relayer failed";
+        setError(errorMsg);
+        console.error("[Relayer Mode] Error:", err);
+        return { success: false, error: errorMsg };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [currentAccount, walletAddress, signPersonalMessage, suiClient, refresh]
+  );
+
   return {
     notes,
     unspentNotes,
@@ -317,5 +444,6 @@ export function useDepositNotes(): UseDepositNotesReturn {
     refresh,
     deposit,
     createSwapIntent,
+    createSwapIntentViaRelayer,
   };
 }

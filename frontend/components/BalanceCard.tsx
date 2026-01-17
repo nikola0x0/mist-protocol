@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { SuiClient } from "@mysten/sui/client";
 import { useCurrentAccount } from "@mysten/dapp-kit";
+import Image from "next/image";
 
 export function BalanceCard() {
   const currentAccount = useCurrentAccount();
@@ -150,8 +151,13 @@ export function BalanceCard() {
         <div className="space-y-3">
           <div className="flex items-center justify-between p-3 bg-green-950/10 rounded-lg border border-green-900/20">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-sm font-bold">
-                S
+              <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-blue-500/20">
+                <Image
+                  src="/assets/token-icons/sui.png"
+                  alt="SUI"
+                  width={32}
+                  height={32}
+                />
               </div>
               <div>
                 <div className="font-medium">SUI Pool</div>
@@ -194,8 +200,13 @@ export function BalanceCard() {
         <div className="space-y-3">
           <div className="flex items-center justify-between p-3 bg-[#0a0a0a] rounded-lg border border-[#262626]">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-sm font-bold">
-                S
+              <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-blue-500/20">
+                <Image
+                  src="/assets/token-icons/sui.png"
+                  alt="SUI"
+                  width={32}
+                  height={32}
+                />
               </div>
               <div>
                 <div className="font-medium">SUI</div>

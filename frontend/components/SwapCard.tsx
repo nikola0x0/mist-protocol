@@ -1,17 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCurrentAccount } from "@mysten/dapp-kit";
 import { useDepositNotes } from "../hooks/useDepositNotes";
 import { formatAmount, DepositNote } from "../lib/deposit-notes";
+import { checkRelayerStatus } from "../lib/relayer";
+import Image from "next/image";
 
 export function SwapCard() {
   const [selectedNote, setSelectedNote] = useState<DepositNote | null>(null);
   const [swapAmount, setSwapAmount] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
+  const [useRelayer, setUseRelayer] = useState(false);
+  const [relayerAvailable, setRelayerAvailable] = useState(false);
 
   const currentAccount = useCurrentAccount();
-  const { unspentNotes, createSwapIntent, loading, error } = useDepositNotes();
+  const { unspentNotes, createSwapIntent, createSwapIntentViaRelayer, loading, error } = useDepositNotes();
+
+  // Check if relayer is available on mount
+  useEffect(() => {
+    checkRelayerStatus().then((status) => {
+      setRelayerAvailable(status.status === "ready");
+    });
+  }, []);
 
   const handleSelectNote = (note: DepositNote) => {
     setSelectedNote(note);
@@ -22,7 +33,10 @@ export function SwapCard() {
   const handleSwap = async () => {
     if (!selectedNote || !swapAmount) return;
 
-    const result = await createSwapIntent(selectedNote, swapAmount);
+    // Use relayer for extra privacy if enabled
+    const result = useRelayer
+      ? await createSwapIntentViaRelayer(selectedNote, swapAmount)
+      : await createSwapIntent(selectedNote, swapAmount);
 
     if (result.success) {
       setShowConfirm(true);
@@ -63,9 +77,14 @@ export function SwapCard() {
               Swap Intent Created!
             </h4>
             <p className="text-gray-400 mb-4 text-sm text-center">
-              Your swap intent has been submitted. The TEE will process it
-              privately and send funds to your stealth address.
+              Your swap intent has been submitted{useRelayer ? " via privacy relayer" : ""}.
+              The TEE will process it privately and send funds to your stealth address.
             </p>
+            {useRelayer && (
+              <p className="text-green-500/80 mb-4 text-xs text-center">
+                🛡️ Enhanced privacy: Your wallet is not linked to this intent on-chain.
+              </p>
+            )}
             <p className="text-gray-500 mb-4 text-xs text-center">
               This may take a few minutes. Check your stealth addresses for the
               output.
@@ -108,8 +127,13 @@ export function SwapCard() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-sm font-bold">
-                      S
+                    <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-blue-500/20">
+                      <Image
+                        src="/assets/token-icons/sui.png"
+                        alt="SUI"
+                        width={32}
+                        height={32}
+                      />
                     </div>
                     <div className="text-left">
                       <div className="font-medium">
@@ -127,6 +151,48 @@ export function SwapCard() {
               ))}
             </div>
           </div>
+
+          {/* Privacy Mode Toggle */}
+          {relayerAvailable && (
+            <div className="mb-6">
+              <div
+                onClick={() => setUseRelayer(!useRelayer)}
+                className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition ${
+                  useRelayer
+                    ? "bg-green-900/20 border-green-600"
+                    : "bg-[#0a0a0a] border-[#262626] hover:border-[#333]"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`text-xl ${useRelayer ? "text-green-500" : "text-gray-500"}`}>
+                    {useRelayer ? "🛡️" : "🔓"}
+                  </div>
+                  <div>
+                    <div className="font-medium">
+                      {useRelayer ? "Enhanced Privacy" : "Standard Mode"}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {useRelayer
+                        ? "Relayer submits tx (hides your wallet)"
+                        : "Your wallet submits tx directly"}
+                    </div>
+                  </div>
+                </div>
+                {/* Toggle Switch */}
+                <div
+                  className={`w-12 h-6 rounded-full p-1 transition ${
+                    useRelayer ? "bg-green-600" : "bg-gray-700"
+                  }`}
+                >
+                  <div
+                    className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                      useRelayer ? "translate-x-6" : "translate-x-0"
+                    }`}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Swap Amount */}
           {selectedNote && (
@@ -198,19 +264,34 @@ export function SwapCard() {
           <button
             onClick={handleSwap}
             disabled={!selectedNote || !isValidAmount || loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-800 disabled:text-gray-600 text-white font-medium py-4 rounded-lg transition"
+            className={`w-full ${
+              useRelayer
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-blue-600 hover:bg-blue-700"
+            } disabled:bg-gray-800 disabled:text-gray-600 text-white font-medium py-4 rounded-lg transition`}
           >
             {loading
-              ? "Creating Swap Intent..."
+              ? useRelayer
+                ? "Submitting via Relayer..."
+                : "Creating Swap Intent..."
               : selectedNote
-              ? "Create Private Swap"
+              ? useRelayer
+                ? "🛡️ Create Private Swap (via Relayer)"
+                : "Create Private Swap"
               : "Select a Deposit First"}
           </button>
 
           {/* Privacy Info */}
           <div className="mt-4 text-xs text-gray-500 text-center">
-            Your swap intent is encrypted. TEE processes privately via Cetus
-            DEX.
+            {useRelayer ? (
+              <>
+                🛡️ Enhanced privacy: Relayer submits your intent, hiding your wallet address on-chain.
+              </>
+            ) : (
+              <>
+                Your swap intent is encrypted. TEE processes privately via Cetus DEX.
+              </>
+            )}
           </div>
         </>
       )}
