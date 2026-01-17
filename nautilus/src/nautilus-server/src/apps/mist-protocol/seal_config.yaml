@@ -11,11 +11,11 @@ public_keys:
   - "0xa040b5548bb0428fba159895c07080cbfdc76ef01bb88ca2ced5c85b07782e09970a1f5684e2a0dd3d3e31beb6cbd7ea02c49a3794b26c6d3d9ffdc99e4984cc981d0d72e933c2af3309216bf7011e9e82c7b68276882f18ba0ea7f45a7721db"
   - "0xa8cb6f59027d14e0a3e97ea1bd79aa6a942f36ffc835f5025591c680d598a5541f087facb39fb12a1d9d71b3a510942b1760e5f6685f86660a4c38b178928bb6d0362a6c7e244985527832c783a8b5195db743ff2289de3b23226dad86cd70f1"
 
-# Mist Protocol v2 Contract IDs (deployed 2025-01-17)
-package_id: "0x6ebdc43fa4bedf4034ae596fab59ca6da58337867fa7d7450c0f81877030a245"
+# Mist Protocol v2 Contract IDs (deployed 2025-01-18)
+package_id: "0xada6fbc7da8ff3034a6d795fc68a282d740b71d0529e44bba08ac92277920c07"
 
 # LiquidityPool - holds all deposited funds
-pool_id: "0x183d2a051fba4c8775d88ee7f9c23d10b9bb21c441e620c1e01a02d4da378798"
+pool_id: "0x190bf788b3ec484cadffc8dc54c68c2c074376bd9f2b1a00f1144553b31a01e6"
 
 # NullifierRegistry - tracks spent nullifiers (double-spend protection)
-registry_id: "0x111c9fbbba720da8c399f5c26e89134e8de980dd41bb72b78b3da7e0dd0d378d"
+registry_id: "0xa5441cda1b7c7476aa585e3e1df3616f2e73720b90a674fbe14dfc5901463129"
