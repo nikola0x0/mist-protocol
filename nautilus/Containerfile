@@ -44,16 +44,16 @@ WORKDIR /build
 COPY . .
 
 # Build init binary
-RUN cargo build --workspace --locked --no-default-features --release --target x86_64-unknown-linux-musl
+RUN cargo build --workspace --no-default-features --release --target x86_64-unknown-linux-musl
 
 # Build nautilus-server with the specified feature
 ARG ENCLAVE_APP
 WORKDIR /build/src/nautilus-server
-RUN cargo build --locked --no-default-features --features $ENCLAVE_APP --release --target x86_64-unknown-linux-musl
+RUN cargo build --no-default-features --features $ENCLAVE_APP --release --target x86_64-unknown-linux-musl
 
 # For mist-protocol, also build the mist-server binary
 RUN if [ "$ENCLAVE_APP" = "mist-protocol" ]; then \
-        cargo build --locked --no-default-features --features mist-protocol --release --target x86_64-unknown-linux-musl --bin mist-server; \
+        cargo build --no-default-features --features mist-protocol --release --target x86_64-unknown-linux-musl --bin mist-server; \
     fi
 
 FROM scratch as base

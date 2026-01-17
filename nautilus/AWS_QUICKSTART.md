@@ -63,6 +63,7 @@ sudo usermod -aG ne ec2-user
 sudo usermod -aG docker ec2-user
 
 # Configure enclave allocator (4GB RAM, 2 CPUs for enclave)
+# Note: Mist Protocol needs ~3GB for SEAL decryption operations
 sudo tee /etc/nitro_enclaves/allocator.yaml > /dev/null <<EOF
 memory_mib: 4096
 cpu_count: 2
