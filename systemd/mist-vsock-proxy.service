@@ -1,0 +1,19 @@
+[Unit]
+Description=Mist Protocol VSOCK Proxy (TCP 3000 <-> VSOCK CID 16)
+After=mist-enclave.service
+Requires=mist-enclave.service
+
+[Service]
+Type=simple
+User=root
+
+# vsock-proxy forwards TCP connections to enclave's VSOCK
+# TCP port 3000 -> VSOCK CID 16, port 3000
+ExecStart=/usr/bin/vsock-proxy 3000 16 3000
+
+# Restart policy
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
