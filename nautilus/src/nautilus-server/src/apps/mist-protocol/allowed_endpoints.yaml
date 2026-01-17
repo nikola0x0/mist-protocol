@@ -1,0 +1,14 @@
+# Mist Protocol - Allowed External Endpoints
+# These domains will be whitelisted for traffic forwarding from the enclave
+
+# Sui RPC endpoints (for blockchain interaction)
+- fullnode.testnet.sui.io
+- fullnode.mainnet.sui.io
+
+# SEAL key servers (for threshold decryption)
+- seal-key-server-testnet-1.mystenlabs.com
+- seal-key-server-testnet-2.mystenlabs.com
+
+# DEX integration (Cetus)
+# NOTE: Add Cetus API endpoint if needed for price quotes
+# - api.cetus.zone

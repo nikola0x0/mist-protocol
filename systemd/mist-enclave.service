@@ -1,0 +1,29 @@
+[Unit]
+Description=Mist Protocol Nitro Enclave
+After=nitro-enclaves-allocator.service docker.service
+Requires=nitro-enclaves-allocator.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/ec2-user/mist-protocol/nautilus
+
+# Stop any existing enclave first
+ExecStartPre=/bin/bash -c 'ENCLAVE_ID=$(/usr/bin/nitro-cli describe-enclaves | jq -r ".[0].EnclaveID // empty"); if [ -n "$ENCLAVE_ID" ]; then /usr/bin/nitro-cli terminate-enclave --enclave-id "$ENCLAVE_ID"; fi'
+
+# Start enclave
+ExecStart=/usr/bin/nitro-cli run-enclave \
+    --cpu-count 2 \
+    --memory 4096 \
+    --eif-path /home/ec2-user/mist-protocol/nautilus/out/nitro.eif \
+    --enclave-cid 16
+
+# Terminate enclave on stop
+ExecStop=/bin/bash -c 'ENCLAVE_ID=$(/usr/bin/nitro-cli describe-enclaves | jq -r ".[0].EnclaveID // empty"); if [ -n "$ENCLAVE_ID" ]; then /usr/bin/nitro-cli terminate-enclave --enclave-id "$ENCLAVE_ID"; fi'
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
