@@ -25,15 +25,20 @@ pub mod seal_types;
 // ============ DATA STRUCTURES ============
 
 /// Decrypted deposit data (from SEAL encrypted blob on Deposit object)
+/// v2: Now includes ownerAddress for signature verification
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DecryptedDepositData {
     /// Deposit amount in base units (MIST for SUI)
     pub amount: String,
     /// Secret nullifier (32-byte hex string)
     pub nullifier: String,
+    /// Owner address for signature verification (Sui address hex)
+    #[serde(rename = "ownerAddress")]
+    pub owner_address: String,
 }
 
 /// Decrypted swap intent details (from SEAL encrypted blob on SwapIntent)
+/// v2: Now includes signature for authorization verification
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DecryptedSwapDetails {
     /// Nullifier that proves ownership of a deposit
@@ -47,6 +52,9 @@ pub struct DecryptedSwapDetails {
     /// Stealth address for remainder (if any)
     #[serde(rename = "remainderStealth")]
     pub remainder_stealth: String,
+    /// Wallet signature over (nullifier, inputAmount, outputStealth, remainderStealth)
+    /// Base64-encoded Sui signature from wallet
+    pub signature: String,
 }
 
 /// On-chain SwapIntent object structure
@@ -128,11 +136,13 @@ mod tests {
 
     #[test]
     fn test_decrypted_swap_details_parsing() {
+        // v2: Now includes signature field
         let json = r#"{
             "nullifier": "0x1234567890abcdef",
             "inputAmount": "1000000000",
             "outputStealth": "0xabc123",
-            "remainderStealth": "0xdef456"
+            "remainderStealth": "0xdef456",
+            "signature": "BASE64_SIGNATURE_HERE"
         }"#;
 
         let details: DecryptedSwapDetails = serde_json::from_str(json).unwrap();
@@ -140,17 +150,21 @@ mod tests {
         assert_eq!(details.input_amount, "1000000000");
         assert_eq!(details.output_stealth, "0xabc123");
         assert_eq!(details.remainder_stealth, "0xdef456");
+        assert_eq!(details.signature, "BASE64_SIGNATURE_HERE");
     }
 
     #[test]
     fn test_decrypted_deposit_data_parsing() {
+        // v2: Now includes ownerAddress field
         let json = r#"{
             "amount": "500000000",
-            "nullifier": "0xfedcba0987654321"
+            "nullifier": "0xfedcba0987654321",
+            "ownerAddress": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
         }"#;
 
         let data: DecryptedDepositData = serde_json::from_str(json).unwrap();
         assert_eq!(data.amount, "500000000");
         assert_eq!(data.nullifier, "0xfedcba0987654321");
+        assert_eq!(data.owner_address, "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef");
     }
 }

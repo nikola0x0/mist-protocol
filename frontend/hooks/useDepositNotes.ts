@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
+import {
+  useCurrentAccount,
+  useSignAndExecuteTransaction,
+  useSignPersonalMessage,
+} from "@mysten/dapp-kit";
 import { SuiClient } from "@mysten/sui/client";
 import { Transaction } from "@mysten/sui/transactions";
+import { toHex } from "@mysten/sui/utils";
 import {
   DepositNote,
   loadDepositNotes,
@@ -18,6 +23,7 @@ import {
   formatAmount,
   parseAmount,
   SwapIntentDetails,
+  createIntentMessage,
 } from "../lib/deposit-notes";
 
 // ============ CONFIG ============
@@ -63,6 +69,7 @@ export function useDepositNotes(): UseDepositNotesReturn {
   const currentAccount = useCurrentAccount();
   const walletAddress = currentAccount?.address || "";
   const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
+  const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
 
   const suiClient = new SuiClient({ url: RPC_URL });
 
@@ -86,9 +93,11 @@ export function useDepositNotes(): UseDepositNotesReturn {
   /**
    * Create a new deposit
    * 1. Generate random nullifier
-   * 2. SEAL encrypt (amount, nullifier)
+   * 2. SEAL encrypt (amount, nullifier, ownerAddress)
    * 3. Call deposit_sui on contract
    * 4. Save deposit note locally
+   *
+   * SECURITY: ownerAddress is stored encrypted so TEE can verify signatures later
    */
   const deposit = useCallback(
     async (
@@ -110,12 +119,14 @@ export function useDepositNotes(): UseDepositNotesReturn {
           amountSui,
           amountMist,
           nullifierPrefix: nullifier.substring(0, 10) + "...",
+          ownerAddress: walletAddress.substring(0, 10) + "...",
         });
 
-        // 2. SEAL encrypt
+        // 2. SEAL encrypt (including owner address for signature verification)
         const encryptedData = await encryptDepositData(
           amountMist,
           nullifier,
+          walletAddress, // Owner address for TEE to verify signatures
           { packageId: PACKAGE_ID, network: NETWORK },
           suiClient
         );
@@ -146,6 +157,7 @@ export function useDepositNotes(): UseDepositNotesReturn {
         // 5. Save deposit note locally (wallet-scoped)
         const note: DepositNote = {
           nullifier,
+          ownerAddress: walletAddress, // Store for reference
           amount: amountMist,
           tokenType: "SUI",
           timestamp: Date.now(),
@@ -172,9 +184,13 @@ export function useDepositNotes(): UseDepositNotesReturn {
   /**
    * Create a swap intent
    * 1. Generate stealth addresses
-   * 2. SEAL encrypt (nullifier, amounts, stealth addresses)
-   * 3. Call create_swap_intent on contract
-   * 4. Save stealth keys locally
+   * 2. Sign intent message with wallet (SECURITY: proves ownership)
+   * 3. SEAL encrypt (nullifier, amounts, stealth addresses, signature)
+   * 4. Call create_swap_intent on contract
+   * 5. Save stealth keys locally
+   *
+   * SECURITY: Wallet signature prevents nullifier theft attacks.
+   * TEE verifies signature matches ownerAddress from deposit.
    */
   const createSwapIntent = useCallback(
     async (
@@ -187,6 +203,14 @@ export function useDepositNotes(): UseDepositNotesReturn {
 
       if (note.spent) {
         return { success: false, error: "Note already spent" };
+      }
+
+      // Verify the current wallet owns this deposit
+      if (note.ownerAddress && note.ownerAddress !== walletAddress) {
+        return {
+          success: false,
+          error: "This deposit belongs to a different wallet",
+        };
       }
 
       setLoading(true);
@@ -211,12 +235,28 @@ export function useDepositNotes(): UseDepositNotesReturn {
           outputStealth: outputStealth.address.substring(0, 10) + "...",
         });
 
-        // 2. SEAL encrypt swap details
+        // 2. Sign intent message with wallet (SECURITY: proves ownership)
+        const messageBytes = createIntentMessage(
+          note.nullifier,
+          swapAmountMist,
+          outputStealth.address,
+          remainderStealth.address
+        );
+
+        console.log("Requesting wallet signature for intent...");
+        const { signature } = await signPersonalMessage({
+          message: messageBytes,
+        });
+
+        console.log("Intent signed successfully");
+
+        // 3. SEAL encrypt swap details (including signature)
         const swapDetails: SwapIntentDetails = {
           nullifier: note.nullifier,
           inputAmount: swapAmountMist,
           outputStealth: outputStealth.address,
           remainderStealth: remainderStealth.address,
+          signature: signature, // Wallet signature for TEE verification
         };
 
         const encryptedDetails = await encryptSwapIntent(
@@ -225,7 +265,7 @@ export function useDepositNotes(): UseDepositNotesReturn {
           suiClient
         );
 
-        // 3. Build transaction
+        // 4. Build transaction
         const tx = new Transaction();
 
         // Deadline: 1 hour from now (in milliseconds)
@@ -241,14 +281,14 @@ export function useDepositNotes(): UseDepositNotesReturn {
           ],
         });
 
-        // 4. Execute transaction
+        // 5. Execute transaction
         const result = await signAndExecute({
           transaction: tx,
         });
 
         console.log("Swap intent transaction:", result);
 
-        // 5. Save stealth keys for scanning later (wallet-scoped)
+        // 6. Save stealth keys for scanning later (wallet-scoped)
         saveStealthKeys(walletAddress, outputStealth, remainderStealth);
 
         // Note: We mark spent when TEE confirms, but for now mark optimistically
@@ -266,7 +306,7 @@ export function useDepositNotes(): UseDepositNotesReturn {
         setLoading(false);
       }
     },
-    [currentAccount, walletAddress, signAndExecute, suiClient, refresh]
+    [currentAccount, walletAddress, signAndExecute, signPersonalMessage, suiClient, refresh]
   );
 
   return {
