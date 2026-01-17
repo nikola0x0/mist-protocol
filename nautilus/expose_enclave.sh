@@ -7,11 +7,26 @@
 
 set -e
 
-# Check for BACKEND_PRIVATE_KEY
+# AWS Secrets Manager config
+SECRET_NAME="${SECRET_NAME:-mist-backend-key}"
+AWS_REGION="${AWS_REGION:-ap-southeast-1}"
+
+# Check for BACKEND_PRIVATE_KEY - fetch from AWS if not set
 if [ -z "$BACKEND_PRIVATE_KEY" ]; then
-    echo "ERROR: BACKEND_PRIVATE_KEY environment variable is not set"
-    echo "Usage: BACKEND_PRIVATE_KEY='suiprivkey1...' ./expose_enclave.sh"
-    exit 1
+    echo "Fetching BACKEND_PRIVATE_KEY from AWS Secrets Manager..."
+    BACKEND_PRIVATE_KEY=$(aws secretsmanager get-secret-value \
+        --secret-id "$SECRET_NAME" \
+        --region "$AWS_REGION" \
+        --query 'SecretString' \
+        --output text 2>/dev/null)
+
+    if [ -z "$BACKEND_PRIVATE_KEY" ]; then
+        echo "ERROR: Could not fetch secret from AWS Secrets Manager"
+        echo "Either set BACKEND_PRIVATE_KEY env var or ensure EC2 has IAM role with secrets access"
+        echo "Usage: BACKEND_PRIVATE_KEY='suiprivkey1...' ./expose_enclave.sh"
+        exit 1
+    fi
+    echo "Secret fetched successfully!"
 fi
 
 # Gets the enclave id and CID

@@ -36,18 +36,20 @@ pub async fn start_intent_processor(state: Arc<AppState>) {
     println!("Registry ID: {}", SEAL_CONFIG.registry_id);
     println!("Poll interval: 5 seconds\n");
 
-    // Initialize Sui client
-    let sui_client = match SuiClientBuilder::default()
-        .build("https://fullnode.testnet.sui.io:443")
-        .await
-    {
-        Ok(client) => {
-            println!("Sui client initialized\n");
-            client
-        }
-        Err(e) => {
-            error!("Failed to create Sui client: {}", e);
-            return;
+    // Initialize Sui client with retry logic
+    let sui_client = loop {
+        match SuiClientBuilder::default()
+            .build("https://fullnode.testnet.sui.io:443")
+            .await
+        {
+            Ok(client) => {
+                println!("Sui client initialized\n");
+                break client;
+            }
+            Err(e) => {
+                error!("Failed to create Sui client: {} - retrying in 5s...", e);
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
         }
     };
 
