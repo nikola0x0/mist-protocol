@@ -34,18 +34,18 @@ export default function AppPage() {
       {/* Header */}
       <header className="border-none backdrop-blur-xl sticky top-0 z-50">
         <div className="px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-3">
             <Image
               src="/assets/logo.svg"
-              alt="MistTx"
+              alt="Mist Protocol"
               width={36}
               height={36}
               className="opacity-90"
             />
             <h1 className="text-xl font-bold font-tektur gradient-text leading-none">
-              MistTx
+              Mist Protocol
             </h1>
-          </div>
+          </Link>
           <ConnectButton />
         </div>
       </header>
