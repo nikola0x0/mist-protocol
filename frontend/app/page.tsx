@@ -49,9 +49,9 @@ export default function Landing() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden flex flex-col">
+    <div className="h-screen bg-black relative overflow-hidden flex flex-col">
       {/* Header */}
-      <header className="relative z-30 border-b border-white/10 backdrop-blur-lg">
+      <header className="relative z-30 backdrop-blur-lg">
         <div className="container mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <Image
@@ -61,7 +61,7 @@ export default function Landing() {
               height={32}
               className="opacity-90"
             />
-            <h1 className="text-xl font-tektur text-white">MistTx</h1>
+            <h1 className="text-xl font-tektur text-white">Mist Protocol</h1>
           </div>
           <Link href="/app">
             <button className="glass-button px-6 py-2.5 text-white hover:glow">
@@ -97,9 +97,9 @@ export default function Landing() {
         </div>
 
         {/* Text Content Below Card */}
-        <div className="max-w-4xl mx-auto text-center space-y-8 px-6 relative z-50">
+        <div className="max-w-4xl mx-auto text-center space-y-6 px-6 relative z-50 -mt-8">
           <h2 className="text-6xl md:text-7xl font-bold leading-tight font-tektur animate-slide-up select-none">
-            <span className="gradient-text">MistTx</span>
+            <span className="gradient-text">Mist Protocol</span>
           </h2>
 
           <p
@@ -116,7 +116,7 @@ export default function Landing() {
           </p>
 
           <div
-            className="pt-8 animate-slide-up"
+            className="pt-4 animate-slide-up"
             style={{ animationDelay: "0.3s" }}
           >
             <Link href="/app">
@@ -129,11 +129,8 @@ export default function Landing() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-30 border-t border-white/10 backdrop-blur-lg py-6">
-        <div className="container mx-auto px-6 flex justify-between items-center">
-          <div className="text-sm text-gray-600 font-inter">
-            Powered by Nautilus • Seal • Walrus • Cetus
-          </div>
+      <footer className="relative z-30 backdrop-blur-lg py-6">
+        <div className="container mx-auto px-6 flex justify-end items-center">
           <div className="flex items-center gap-4">
             <a
               href="https://github.com/nikola0x0/mist-protocol"

@@ -53,28 +53,26 @@ rm -f secrets.json
 
 echo "Starting port forwarders..."
 
-# Forward app port (3000) - host:3000 <-> enclave:3000
-socat TCP4-LISTEN:3000,reuseaddr,fork VSOCK-CONNECT:$ENCLAVE_CID:3000 &
-echo "  Port 3000 forwarded"
+# Forward app port (3001) - host:3001 <-> enclave:3001
+socat TCP4-LISTEN:3001,reuseaddr,fork VSOCK-CONNECT:$ENCLAVE_CID:3001 &
+echo "  Port 3001 forwarded"
 
 # Forward VSOCK proxies for external HTTPS traffic
 # These connect enclave's traffic forwarders to external endpoints
 vsock-proxy 8101 fullnode.testnet.sui.io 443 &
-echo "  VSOCK proxy 8101 -> fullnode.testnet.sui.io:443"
+echo "  VSOCK proxy 8101 -> fullnode.testnet.sui.io:443 (Sui RPC)"
 
 vsock-proxy 8102 seal-key-server-testnet-1.mystenlabs.com 443 &
-echo "  VSOCK proxy 8102 -> seal-key-server-testnet-1.mystenlabs.com:443"
+echo "  VSOCK proxy 8102 -> seal-key-server-testnet-1.mystenlabs.com:443 (SEAL)"
 
 vsock-proxy 8103 seal-key-server-testnet-2.mystenlabs.com 443 &
-echo "  VSOCK proxy 8103 -> seal-key-server-testnet-2.mystenlabs.com:443"
+echo "  VSOCK proxy 8103 -> seal-key-server-testnet-2.mystenlabs.com:443 (SEAL)"
 
-# DEX API endpoints for price discovery
-vsock-proxy 8104 api-sui.cetus.zone 443 &
-echo "  VSOCK proxy 8104 -> api-sui.cetus.zone:443 (Cetus DEX)"
+# Note: FlowX DEX uses on-chain contracts via Sui RPC, no separate API needed
 
 echo ""
 echo "Enclave exposed! Test with:"
-echo "  curl http://localhost:3000/health_check"
+echo "  curl http://localhost:3001/health_check"
 echo ""
 echo "Press Ctrl+C to stop port forwarding"
 wait

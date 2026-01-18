@@ -23,16 +23,16 @@ export default function HowItWorksPage() {
       {/* Header */}
       <header className="border-none backdrop-blur-xl sticky top-0 z-50">
         <div className="px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-3">
             <Image
               src="/assets/logo.svg"
-              alt="MistTx"
+              alt="Mist Protocol"
               width={36}
               height={36}
               className="opacity-90"
             />
-            <h1 className="text-xl font-bold font-tektur gradient-text">MistTx</h1>
-          </div>
+            <h1 className="text-xl font-bold font-tektur gradient-text">Mist Protocol</h1>
+          </Link>
           <Link href="/app" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
             <ArrowLeft size={16} />
             <span className="text-sm">Back to App</span>
@@ -49,7 +49,7 @@ export default function HowItWorksPage() {
         >
           {/* Title */}
           <div className="text-center mb-10">
-            <h1 className="text-3xl font-bold font-tektur mb-3">How MistTx Works</h1>
+            <h1 className="text-3xl font-bold font-tektur mb-3">How Mist Protocol Works</h1>
             <p className="text-gray-400 text-sm">
               A step-by-step look at private swaps on Sui
             </p>
@@ -112,7 +112,7 @@ export default function HowItWorksPage() {
             >
               <div className="flex items-center gap-3 mb-3">
                 <span className="text-blue-400/60 font-mono text-sm">02</span>
-                <h2 className="text-base font-bold font-tektur text-white">You deposit SUI into MistTx</h2>
+                <h2 className="text-base font-bold font-tektur text-white">You deposit SUI into Mist Protocol</h2>
               </div>
               <div className="glass-card rounded-xl overflow-hidden ml-10">
                 <div className="w-full py-8 px-6 bg-gradient-to-br from-blue-950/30 to-transparent flex items-center justify-center gap-3">
@@ -127,7 +127,7 @@ export default function HowItWorksPage() {
                     <div className="w-14 h-14 rounded-xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
                       <Box className="text-blue-400" size={28} />
                     </div>
-                    <span className="text-[10px] text-gray-500">MistTx Pool</span>
+                    <span className="text-[10px] text-gray-500">Mist Protocol Pool</span>
                   </div>
                   <ArrowRight className="text-blue-500/40 -mt-5" size={20} />
                   <div className="flex flex-col items-center gap-2">
@@ -139,7 +139,7 @@ export default function HowItWorksPage() {
                 </div>
                 <div className="p-5">
                   <p className="text-gray-300 text-sm leading-relaxed">
-                    Deposit SUI into MistTx&apos;s pool. You get a <strong className="text-white">secret deposit note</strong> stored only on your device.
+                    Deposit SUI into Mist Protocol&apos;s pool. You get a <strong className="text-white">secret deposit note</strong> stored only on your device.
                     This note is your key to accessing your funds later - no one else has it.
                   </p>
                 </div>
@@ -352,7 +352,7 @@ export default function HowItWorksPage() {
           <div className="text-center">
             <Link href="/app">
               <button className="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-xl font-tektur text-white transition-colors shadow-lg shadow-blue-500/20">
-                Start Using MistTx
+                Start Using Mist Protocol
               </button>
             </Link>
           </div>
