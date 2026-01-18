@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { ConnectButton } from "@/components/ConnectButton";
 import { DepositCard } from "@/components/DepositCard";
 import { SwapCard } from "@/components/SwapCard";
@@ -37,7 +38,21 @@ export default function AppPage() {
               </p>
             </div>
           </div>
-          <ConnectButton />
+          <div className="flex items-center gap-4">
+            <Link
+              href="/cetus-swap"
+              className="px-4 py-2 text-sm font-anonymous-pro text-gray-400 hover:text-white transition border border-white/10 rounded-lg hover:border-blue-500/50 hover:bg-blue-500/10"
+            >
+              🌊 Cetus Swap
+            </Link>
+            <Link
+              href="/flowx-swap"
+              className="px-4 py-2 text-sm font-anonymous-pro text-gray-400 hover:text-white transition border border-white/10 rounded-lg hover:border-purple-500/50 hover:bg-purple-500/10"
+            >
+              💧 FlowX Swap
+            </Link>
+            <ConnectButton />
+          </div>
         </div>
       </header>
 

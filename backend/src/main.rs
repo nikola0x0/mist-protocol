@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use axum::{routing::get, Router};
+use axum::{routing::{get, post}, Router};
 use fastcrypto::ed25519::Ed25519KeyPair;
 use nautilus_server::common::{get_attestation, health_check};
 use nautilus_server::AppState;
@@ -45,12 +45,83 @@ async fn main() -> Result<()> {
         .allow_headers(Any)
         .allow_origin(Any); // Allow all origins for development
 
+    // Build base router
     let app = Router::new()
         .route("/", get(ping))
         .route("/get_attestation", get(get_attestation))
         .route("/health_check", get(health_check))
-        .with_state(state.clone())
-        .layer(cors);
+        .with_state(state.clone());
+
+    // Combine routers with different states
+    let mut combined_app = app;
+
+    // Add Cetus routes if feature is enabled
+    #[cfg(feature = "cetus")]
+    {
+        use nautilus_server::app::cetus;
+
+        // Initialize Cetus-specific state
+        let network = std::env::var("NETWORK")
+            .unwrap_or("mainnet".to_string())
+            .parse::<cetus::Network>()
+            .unwrap_or(cetus::Network::Mainnet);
+
+        let cetus_config = cetus::AppConfig::new(network);
+
+        let sui_client = match cetus_config.network {
+            cetus::Network::Mainnet => sui_sdk::SuiClientBuilder::default().build_mainnet().await?,
+            cetus::Network::Testnet => sui_sdk::SuiClientBuilder::default().build_testnet().await?,
+        };
+
+        let cetus_state = Arc::new(cetus::CetusState {
+            sui_client,
+            http_client: reqwest::Client::new(),
+            config: cetus_config,
+        });
+
+        println!("🐋 Cetus integration enabled");
+
+        let cetus_router = Router::new()
+            .route("/api/cetus/pools", get(cetus::routes::get_pools))
+            .route("/api/cetus/pool/info", post(cetus::routes::get_pool_info))
+            .route("/api/cetus/build-swap", post(cetus::routes::build_swap_transaction))
+            .route("/api/cetus/submit-signed", post(cetus::routes::submit_signed_transaction))
+            .with_state(cetus_state);
+
+        combined_app = combined_app.merge(cetus_router);
+    }
+
+    // Add FlowX routes if feature is enabled
+    #[cfg(feature = "flowx")]
+    {
+        use nautilus_server::app::flowx;
+
+        let flowx_config = flowx::FlowXConfig::from_env()?;
+
+        // Create Sui client based on network
+        let sui_client = sui_sdk::SuiClientBuilder::default()
+            .build(&flowx_config.sui_rpc_url())
+            .await?;
+
+        // Create FlowX state for new transaction routes
+        let flowx_tx_state = Arc::new(flowx::routes::FlowXState {
+            sui_client,
+            config: flowx_config.clone(),
+        });
+
+        println!("🌊 FlowX integration enabled");
+        println!("   Using Cetus-style transaction API");
+
+        // New transaction routes (Cetus-style)
+        let flowx_router = Router::new()
+            .route("/api/flowx/build-swap", post(flowx::routes::build_swap_transaction))
+            .route("/api/flowx/submit-signed", post(flowx::routes::submit_signed_transaction))
+            .with_state(flowx_tx_state);
+
+        combined_app = combined_app.merge(flowx_router);
+    }
+
+    let app = combined_app.layer(cors);
 
     // Spawn intent processor background task if mist-protocol feature is enabled
     #[cfg(feature = "mist-protocol")]

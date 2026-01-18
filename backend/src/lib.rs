@@ -13,11 +13,23 @@ mod apps {
     #[cfg(feature = "mist-protocol")]
     #[path = "mist-protocol/mod.rs"]
     pub mod mist_protocol;
+
+    #[cfg(feature = "cetus")]
+    pub mod cetus;
+
+    #[cfg(feature = "flowx")]
+    pub mod flowx;
 }
 
 pub mod app {
     #[cfg(feature = "mist-protocol")]
     pub use crate::apps::mist_protocol::*;
+
+    #[cfg(feature = "cetus")]
+    pub use crate::apps::cetus;
+
+    #[cfg(feature = "flowx")]
+    pub use crate::apps::flowx;
 }
 
 pub mod common;

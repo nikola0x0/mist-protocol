@@ -116,12 +116,22 @@ export default function Landing() {
           </p>
 
           <div
-            className="pt-8 animate-slide-up"
+            className="pt-8 flex flex-col sm:flex-row gap-4 justify-center animate-slide-up"
             style={{ animationDelay: "0.3s" }}
           >
             <Link href="/app">
               <button className="glass-button px-12 py-4 text-lg text-white hover:glow font-tektur">
                 launch app
+              </button>
+            </Link>
+            <Link href="/cetus-swap">
+              <button className="glass-button px-12 py-4 text-lg text-white hover:glow font-tektur bg-gradient-to-r from-blue-500/20 to-cyan-500/20">
+                cetus swap
+              </button>
+            </Link>
+            <Link href="/flowx-swap">
+              <button className="glass-button px-12 py-4 text-lg text-white hover:glow font-tektur bg-gradient-to-r from-purple-500/20 to-pink-500/20">
+                flowx swap
               </button>
             </Link>
           </div>
