@@ -15,11 +15,13 @@ const AdvancedChart = dynamic(
   { ssr: false, loading: () => <div className="h-full w-full bg-white/5 rounded-xl animate-pulse" /> }
 );
 
-// DEX options
+// Token types
+const MIST_TOKEN_TYPE = "0x1071c10ef6fa032cd54f51948b5193579e6596ffaecd173df2dac6f73e31a468::mist_token::MIST_TOKEN";
+
+// DEX options with output token configuration
 const DEX_OPTIONS = [
-  { id: "cetus", name: "Cetus", logo: "/assets/dex/cetus.png" },
-  { id: "flowx", name: "FlowX", logo: "/assets/dex/flowX.svg" },
-  { id: "walrus", name: "Walrus Swap", logo: "/assets/dex/walrus-swap.svg" },
+  { id: "flowx", name: "FlowX", logo: "/assets/dex/flowX.svg", outputToken: "MIST", outputIcon: "/assets/token-icons/mist-token.png", outputType: MIST_TOKEN_TYPE },
+  { id: "walrus", name: "Walrus Swap", logo: "/assets/dex/walrus-swap.svg", outputToken: "WAL", outputIcon: "/assets/token-icons/wal.svg", outputType: "WAL" },
 ];
 
 export function SwapCard() {
@@ -67,10 +69,13 @@ export function SwapCard() {
   const handleSwap = async () => {
     if (!selectedNote || !swapAmount) return;
 
+    // Get output token type from selected DEX
+    const tokenOut = selectedDex.outputType;
+
     // Use relayer for extra privacy if enabled
     const result = useRelayer
-      ? await createSwapIntentViaRelayer(selectedNote, swapAmount)
-      : await createSwapIntent(selectedNote, swapAmount);
+      ? await createSwapIntentViaRelayer(selectedNote, swapAmount, tokenOut)
+      : await createSwapIntent(selectedNote, swapAmount, tokenOut);
 
     if (result.success) {
       setShowConfirm(true);
@@ -162,9 +167,7 @@ export function SwapCard() {
         <div className="glass-card rounded-2xl p-4 mb-4 border border-white/5 hover:border-white/10 transition-colors">
           <div className="flex justify-between text-sm text-gray-400 mb-2 font-medium">
             <span>Receive</span>
-            {selectedDex.id === "walrus" && (
-              <span className="text-xs">1 SUI = 1 WAL</span>
-            )}
+            <span className="text-xs">via {selectedDex.name}</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -179,14 +182,14 @@ export function SwapCard() {
             <button className="flex items-center gap-2 bg-white/5 hover:bg-white/10 transition-colors rounded-full pl-2 pr-3 py-1.5 flex-shrink-0 shadow-lg cursor-default border border-white/5">
               <div className="w-6 h-6 relative rounded-full overflow-hidden">
                 <Image
-                  src={selectedDex.id === "walrus" ? "/assets/token-icons/wal.svg" : "/assets/token-icons/usdc.svg"}
-                  alt={selectedDex.id === "walrus" ? "WAL" : "USDC"}
+                  src={selectedDex.outputIcon}
+                  alt={selectedDex.outputToken}
                   fill
                   className="object-cover"
                 />
               </div>
               <span className="font-bold text-lg text-white">
-                {selectedDex.id === "walrus" ? "WAL" : "USDC"}
+                {selectedDex.outputToken}
               </span>
             </button>
           </div>
@@ -339,7 +342,7 @@ export function SwapCard() {
             <div className="w-full h-full rounded-xl overflow-hidden">
               <AdvancedChart
                 widgetProps={{
-                  symbol: selectedDex.id === "walrus" ? "WALSUI_F4238F.USD" : "SUIUSDC",
+                  symbol: selectedDex.id === "walrus" ? "WALSUI_F4238F.USD" : "SUIUSD",
                   width: 496,
                   height: 556,
                 interval: "15",

@@ -63,6 +63,6 @@ deps = { Sui = "Sui", enclave = "enclave" }
 
 [env.testnet]
 chain-id = "4c78adac"
-original-published-id = "0xada6fbc7da8ff3034a6d795fc68a282d740b71d0529e44bba08ac92277920c07"
-latest-published-id = "0xada6fbc7da8ff3034a6d795fc68a282d740b71d0529e44bba08ac92277920c07"
+original-published-id = "0x721e4d1a9c221974966e8e6768c88e313e0bf7d580a3514239efaf4635943109"
+latest-published-id = "0x721e4d1a9c221974966e8e6768c88e313e0bf7d580a3514239efaf4635943109"
 published-version = "1"

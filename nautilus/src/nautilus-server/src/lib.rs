@@ -13,11 +13,21 @@ mod apps {
     #[cfg(feature = "mist-protocol")]
     #[path = "mist-protocol/mod.rs"]
     pub mod mist_protocol;
+
+    #[cfg(feature = "mist-protocol")]
+    #[path = "flowx/mod.rs"]
+    pub mod flowx;
 }
 
 pub mod app {
     #[cfg(feature = "mist-protocol")]
     pub use crate::apps::mist_protocol::*;
+}
+
+// Export FlowX module for swap_executor
+#[cfg(feature = "mist-protocol")]
+pub mod flowx {
+    pub use crate::apps::flowx::*;
 }
 
 pub mod common;

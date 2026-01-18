@@ -11,11 +11,42 @@ public_keys:
   - "0xa040b5548bb0428fba159895c07080cbfdc76ef01bb88ca2ced5c85b07782e09970a1f5684e2a0dd3d3e31beb6cbd7ea02c49a3794b26c6d3d9ffdc99e4984cc981d0d72e933c2af3309216bf7011e9e82c7b68276882f18ba0ea7f45a7721db"
   - "0xa8cb6f59027d14e0a3e97ea1bd79aa6a942f36ffc835f5025591c680d598a5541f087facb39fb12a1d9d71b3a510942b1760e5f6685f86660a4c38b178928bb6d0362a6c7e244985527832c783a8b5195db743ff2289de3b23226dad86cd70f1"
 
-# Mist Protocol v2 Contract IDs (deployed 2025-01-18)
-package_id: "0xada6fbc7da8ff3034a6d795fc68a282d740b71d0529e44bba08ac92277920c07"
+# Mist Protocol v2 Contract IDs (deployed 2025-01-18, with withdraw_for_swap)
+package_id: "0x721e4d1a9c221974966e8e6768c88e313e0bf7d580a3514239efaf4635943109"
 
 # LiquidityPool - holds all deposited funds
-pool_id: "0x190bf788b3ec484cadffc8dc54c68c2c074376bd9f2b1a00f1144553b31a01e6"
+pool_id: "0x20a277f2b72e9805808ba2a44900b181799ed237c9c83264952877012c627098"
 
 # NullifierRegistry - tracks spent nullifiers (double-spend protection)
-registry_id: "0xa5441cda1b7c7476aa585e3e1df3616f2e73720b90a674fbe14dfc5901463129"
+registry_id: "0x9106d927e1298ae5b00bfaf3a2b9e60584141f298b9842629c5b3e3610a17454"
+
+# DEX Configuration - FlowX Testnet
+dex:
+  provider: "flowx"
+  network: "testnet"
+
+  # FlowX Testnet addresses
+  flowx:
+    package_id: "0x6cc1ce379acd35203f856f1dd0e063023caf091c47ce19b4695299de8b5fcb17"
+    pool_registry_id: "0xe59d16a0427a1ad98302eda383025d342d555ff9a98113f421c2184bdee1963e"
+    versioned_id: "0xf7eacab72d4a09da34ceb38922c21d7c48cb6bbedb5f1c57899f5c782abe1b5c"
+    # Default fee rate for SUI/MIST_TOKEN pool (0.3%)
+    default_fee_rate: 3000
+
+# Token Configuration
+tokens:
+  sui:
+    type: "0x2::sui::SUI"
+    decimals: 9
+    metadata_id: "0x9258181f5ceac8dbffb7030890243caed69a9599d2886d957a9cb7656af3bdb3"
+
+  mist_token:
+    type: "0x1071c10ef6fa032cd54f51948b5193579e6596ffaecd173df2dac6f73e31a468::mist_token::MIST_TOKEN"
+    decimals: 9
+
+# Swap limits for demo (low liquidity)
+swap_limits:
+  # Maximum swap size (0.5 SUI = 500_000_000 MIST)
+  max_input: 500000000
+  # Recommended demo size (0.05 SUI = 50_000_000 MIST)
+  demo_size: 50000000
