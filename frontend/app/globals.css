@@ -278,39 +278,37 @@ button:active {
 .card-letters {
   --x: 0px;
   --y: 0px;
-  position: absolute;
-  left: -100px;
-  top: -100px;
-  right: -100px;
-  bottom: -100px;
-  color: rgba(200, 200, 200, 0.4);
-  font-size: 0.8rem;
+  /* Removed absolute positioning constraints as it is now fixed inset-0 in the component */
+  color: rgba(200, 200, 200, 0.3);
+  font-size: 0.6rem;
   font-weight: 500;
   word-wrap: break-word;
-  opacity: 0;
-  transition: opacity 400ms;
+  opacity: 1; /* Always visible, masked by gradient */
+  /* No transition needed for opacity as it is always 1 */
   -webkit-mask-image: radial-gradient(
-    300px circle at var(--x) var(--y),
+    500px circle at var(--x) var(--y),
     rgb(255 255 255) 10%,
     rgb(255 255 255 / 40%) 25%,
     rgb(255 255 255 / 15%) 40%,
     transparent 60%
   );
   mask-image: radial-gradient(
-    300px circle at var(--x) var(--y),
+    500px circle at var(--x) var(--y),
     rgb(255 255 255) 10%,
     rgb(255 255 255 / 40%) 25%,
     rgb(255 255 255 / 15%) 40%,
     transparent 60%
   );
-  scale: 4;
+  /* scale: 1.2; Removed scaling to avoid distortion on full screen */
   font-family: var(--font-inter), system-ui, sans-serif;
-  padding: 100px;
+  padding: 0; /* Removed padding */
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
-.card-track .card:hover .card-letters {
-  opacity: 1;
-}
+/* Removed hover dependency for opacity */
+/* .card-track .card:hover .card-letters { opacity: 1; } */
 
 @media (max-width: 768px) {
   .card-track {

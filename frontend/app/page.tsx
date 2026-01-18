@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 
 export default function Landing() {
-  const cardRef = useRef<HTMLDivElement>(null);
   const lettersRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -17,39 +16,36 @@ export default function Landing() {
     const randomString = (length: number) =>
       Array.from(Array(length)).map(randomChar).join("");
 
-    const card = cardRef.current;
     const letters = lettersRef.current;
 
-    if (!card || !letters) return;
+    if (!letters) return;
 
     const handleOnMove = (e: MouseEvent | TouchEvent) => {
-      const rect = card.getBoundingClientRect();
       const clientX = "clientX" in e ? e.clientX : e.touches[0].clientX;
       const clientY = "clientY" in e ? e.clientY : e.touches[0].clientY;
 
-      // Calculate position relative to the card, accounting for the extended letter bounds
-      const x = clientX - rect.left + 120; // Add 100 to account for left: -100px
-      const y = clientY - rect.top + 120; // Add 100 to account for top: -100px
-
-      letters.style.setProperty("--x", `${x}px`);
-      letters.style.setProperty("--y", `${y}px`);
-      letters.innerText = randomString(2500);
+      letters.style.setProperty("--x", `${clientX}px`);
+      letters.style.setProperty("--y", `${clientY}px`);
+      letters.innerText = randomString(20000);
     };
 
     const onMouseMove = (e: MouseEvent) => handleOnMove(e);
     const onTouchMove = (e: TouchEvent) => handleOnMove(e);
 
-    card.addEventListener("mousemove", onMouseMove);
-    card.addEventListener("touchmove", onTouchMove);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("touchmove", onTouchMove);
 
     return () => {
-      card.removeEventListener("mousemove", onMouseMove);
-      card.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("touchmove", onTouchMove);
     };
   }, []);
 
   return (
     <div className="h-screen bg-black relative overflow-hidden flex flex-col">
+      {/* Full Screen Hover Effect */}
+      <div className="card-letters fixed inset-0 z-0" ref={lettersRef}></div>
+
       {/* Header */}
       <header className="relative z-30 backdrop-blur-lg">
         <div className="container mx-auto px-6 py-4 flex justify-between items-center">
@@ -71,33 +67,20 @@ export default function Landing() {
         </div>
       </header>
 
-      {/* Main Content with Card Effect */}
-      <main className="flex-1 flex flex-col items-center justify-center relative">
-        <div className="card-track -mb-20">
-          <div className="card-wrapper">
-            <div className="card" ref={cardRef}>
-              <div className="card-image">
-                <Image
-                  src="/assets/logo.svg"
-                  alt="Mist Protocol"
-                  width={200}
-                  height={200}
-                />
-              </div>
-              <div className="card-gradient"></div>
-              <div className="card-letters" ref={lettersRef}></div>
-            </div>
-            <div className="card-corners">
-              <span className="card-corner"></span>
-              <span className="card-corner"></span>
-              <span className="card-corner"></span>
-              <span className="card-corner"></span>
-            </div>
-          </div>
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col items-center justify-center relative z-10 pointer-events-none">
+        <div className="mb-8 pointer-events-auto">
+          <Image
+            src="/assets/logo.svg"
+            alt="Mist Protocol"
+            width={200}
+            height={200}
+            className="drop-shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+          />
         </div>
 
-        {/* Text Content Below Card */}
-        <div className="max-w-4xl mx-auto text-center space-y-6 px-6 relative z-50 -mt-8">
+        {/* Text Content Below Logo */}
+        <div className="max-w-4xl mx-auto text-center space-y-6 px-6 relative z-50 pointer-events-auto">
           <h2 className="text-6xl md:text-7xl font-bold leading-tight font-tektur animate-slide-up select-none">
             <span className="gradient-text">Mist Protocol</span>
           </h2>
