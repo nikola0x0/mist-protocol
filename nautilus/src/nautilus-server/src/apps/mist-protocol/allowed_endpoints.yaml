@@ -10,5 +10,7 @@
 - seal-key-server-testnet-2.mystenlabs.com
 
 # DEX integration (Cetus)
-# NOTE: Add Cetus API endpoint if needed for price quotes
-# - api.cetus.zone
+- api-sui.cetus.zone
+
+# DEX integration (FlowX) - if needed in future
+# - api.flowx.finance

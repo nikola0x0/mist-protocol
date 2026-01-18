@@ -62,8 +62,8 @@ async fn main() -> Result<()> {
         });
     }
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    println!("🚀 Backend listening on port 3000\n");
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3001").await?;
+    println!("🚀 Backend listening on port 3001\n");
     axum::serve(listener, app.into_make_service())
         .await
         .map_err(|e| anyhow::anyhow!("Server error: {}", e))

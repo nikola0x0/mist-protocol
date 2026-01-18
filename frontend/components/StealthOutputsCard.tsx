@@ -12,14 +12,33 @@ import {
   removeStealthKeyPair,
 } from "../lib/deposit-notes";
 import { RefreshCw, Inbox } from "lucide-react";
+import Image from "next/image";
+
+// ============ CONSTANTS ============
+
+const MIST_TOKEN_TYPE = "0x1071c10ef6fa032cd54f51948b5193579e6596ffaecd173df2dac6f73e31a468::mist_token::MIST_TOKEN";
+
+// Token types to check for
+const TOKEN_TYPES = [
+  { type: "0x2::sui::SUI", symbol: "SUI", icon: "/assets/token-icons/sui.png", decimals: 9 },
+  { type: MIST_TOKEN_TYPE, symbol: "MIST", icon: "/assets/token-icons/mist-token.png", decimals: 9 },
+];
 
 // ============ TYPES ============
+
+interface TokenBalance {
+  type: string;
+  symbol: string;
+  icon: string;
+  balance: string;
+  coinIds: string[];
+}
 
 interface StealthOutput {
   outputStealth: StealthAddress;
   remainderStealth: StealthAddress;
-  outputBalance: string;
-  remainderBalance: string;
+  outputBalances: TokenBalance[];
+  remainderBalances: TokenBalance[];
   timestamp: number;
 }
 
@@ -36,6 +55,38 @@ export function StealthOutputsCard() {
   const suiClient = useSuiClient();
   const { mutateAsync: signTransaction } = useSignTransaction();
 
+  // Helper to get balances for all token types at an address
+  const getTokenBalances = async (address: string): Promise<TokenBalance[]> => {
+    const balances: TokenBalance[] = [];
+
+    for (const token of TOKEN_TYPES) {
+      try {
+        const coins = await suiClient.getCoins({
+          owner: address,
+          coinType: token.type,
+        });
+
+        const totalBalance = coins.data
+          .reduce((sum, coin) => sum + BigInt(coin.balance), BigInt(0))
+          .toString();
+
+        if (BigInt(totalBalance) > 0) {
+          balances.push({
+            type: token.type,
+            symbol: token.symbol,
+            icon: token.icon,
+            balance: totalBalance,
+            coinIds: coins.data.map(c => c.coinObjectId),
+          });
+        }
+      } catch {
+        // Address may not exist yet or no coins
+      }
+    }
+
+    return balances;
+  };
+
   // Load stealth outputs and check balances
   const loadOutputs = useCallback(async () => {
     if (!walletAddress) {
@@ -49,42 +100,17 @@ export function StealthOutputsCard() {
     try {
       const stealthKeys = loadStealthKeys(walletAddress);
 
-      // Fetch balances for each stealth address
+      // Fetch balances for each stealth address (all token types)
       const outputsWithBalances: StealthOutput[] = await Promise.all(
         stealthKeys.map(async (keys) => {
-          // Query balance for output stealth address
-          let outputBalance = "0";
-          try {
-            const outputCoins = await suiClient.getCoins({
-              owner: keys.output.address,
-              coinType: "0x2::sui::SUI",
-            });
-            outputBalance = outputCoins.data
-              .reduce((sum, coin) => sum + BigInt(coin.balance), BigInt(0))
-              .toString();
-          } catch {
-            // Address may not exist yet
-          }
-
-          // Query balance for remainder stealth address
-          let remainderBalance = "0";
-          try {
-            const remainderCoins = await suiClient.getCoins({
-              owner: keys.remainder.address,
-              coinType: "0x2::sui::SUI",
-            });
-            remainderBalance = remainderCoins.data
-              .reduce((sum, coin) => sum + BigInt(coin.balance), BigInt(0))
-              .toString();
-          } catch {
-            // Address may not exist yet
-          }
+          const outputBalances = await getTokenBalances(keys.output.address);
+          const remainderBalances = await getTokenBalances(keys.remainder.address);
 
           return {
             outputStealth: keys.output,
             remainderStealth: keys.remainder,
-            outputBalance,
-            remainderBalance,
+            outputBalances,
+            remainderBalances,
             timestamp: keys.timestamp,
           };
         })
@@ -94,8 +120,8 @@ export function StealthOutputsCard() {
       const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
       const filtered = outputsWithBalances.filter(
         (o) =>
-          BigInt(o.outputBalance) > 0 ||
-          BigInt(o.remainderBalance) > 0 ||
+          o.outputBalances.length > 0 ||
+          o.remainderBalances.length > 0 ||
           o.timestamp > oneDayAgo
       );
 
@@ -112,10 +138,10 @@ export function StealthOutputsCard() {
     loadOutputs();
   }, [loadOutputs]);
 
-  // Claim coins from a stealth address using sponsored transaction
+  // Claim all coins from a stealth address using sponsored transaction
   // User's main wallet pays for gas, stealth address is the sender
-  const claimCoins = async (stealth: StealthAddress) => {
-    if (!walletAddress) return;
+  const claimCoins = async (stealth: StealthAddress, balances: TokenBalance[]) => {
+    if (!walletAddress || balances.length === 0) return;
 
     setClaiming(stealth.address);
     setError(null);
@@ -124,16 +150,6 @@ export function StealthOutputsCard() {
       // Get the keypair for the stealth address
       const stealthKeypair = getStealthKeypair(stealth);
 
-      // Query all coins at the stealth address
-      const coins = await suiClient.getCoins({
-        owner: stealth.address,
-        coinType: "0x2::sui::SUI",
-      });
-
-      if (coins.data.length === 0) {
-        throw new Error("No coins to claim");
-      }
-
       // Build transaction:
       // - Sender: stealth address (owns the coins)
       // - Gas sponsor: user's main wallet (pays for gas)
@@ -141,9 +157,11 @@ export function StealthOutputsCard() {
       tx.setSender(stealth.address);
       tx.setGasOwner(walletAddress); // User's wallet sponsors gas
 
-      // Transfer all coins to the main wallet
-      const coinRefs = coins.data.map((coin) => tx.object(coin.coinObjectId));
-      tx.transferObjects(coinRefs, walletAddress);
+      // Transfer all coins of all types to the main wallet
+      for (const tokenBalance of balances) {
+        const coinRefs = tokenBalance.coinIds.map((id) => tx.object(id));
+        tx.transferObjects(coinRefs, walletAddress);
+      }
 
       // Step 1: Get sponsor (user wallet) signature via dapp-kit
       // This prompts the user to sign
@@ -166,35 +184,17 @@ export function StealthOutputsCard() {
 
       console.log("Claim transaction:", result);
 
-      // Check if both balances are now 0 for this entry, if so remove it
+      // Check if both addresses have 0 balance for this entry, if so remove it
       const entry = outputs.find(
         (o) => o.outputStealth.address === stealth.address || o.remainderStealth.address === stealth.address
       );
       if (entry) {
         // Re-fetch balances for this entry
-        let newOutputBalance = "0";
-        let newRemainderBalance = "0";
-        try {
-          const outputCoins = await suiClient.getCoins({
-            owner: entry.outputStealth.address,
-            coinType: "0x2::sui::SUI",
-          });
-          newOutputBalance = outputCoins.data
-            .reduce((sum, coin) => sum + BigInt(coin.balance), BigInt(0))
-            .toString();
-        } catch { /* ignore */ }
-        try {
-          const remainderCoins = await suiClient.getCoins({
-            owner: entry.remainderStealth.address,
-            coinType: "0x2::sui::SUI",
-          });
-          newRemainderBalance = remainderCoins.data
-            .reduce((sum, coin) => sum + BigInt(coin.balance), BigInt(0))
-            .toString();
-        } catch { /* ignore */ }
+        const newOutputBalances = await getTokenBalances(entry.outputStealth.address);
+        const newRemainderBalances = await getTokenBalances(entry.remainderStealth.address);
 
-        // If both are 0, remove from storage
-        if (BigInt(newOutputBalance) === BigInt(0) && BigInt(newRemainderBalance) === BigInt(0)) {
+        // If both are empty, remove from storage
+        if (newOutputBalances.length === 0 && newRemainderBalances.length === 0) {
           removeStealthKeyPair(walletAddress, entry.outputStealth.address);
         }
       }
@@ -259,19 +259,29 @@ export function StealthOutputsCard() {
               className="glass-card rounded-2xl p-5 border border-white/5 hover:border-white/10 transition-all"
             >
               {/* Output Stealth */}
-              {BigInt(output.outputBalance) > 0 && (
+              {output.outputBalances.length > 0 && (
                 <div className="mb-4 pb-4 border-b border-white/5">
-                  <div className="flex justify-between items-center mb-2">
+                  <div className="flex justify-between items-center mb-3">
                     <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Swap Output</span>
-                    <span className="text-xl font-bold text-green-400">
-                      {formatAmount(output.outputBalance)} SUI
-                    </span>
+                  </div>
+                  {/* Token balances */}
+                  <div className="space-y-2 mb-3">
+                    {output.outputBalances.map((token) => (
+                      <div key={token.type} className="flex items-center gap-2">
+                        <div className="w-6 h-6 relative rounded-full overflow-hidden">
+                          <Image src={token.icon} alt={token.symbol} fill className="object-cover" />
+                        </div>
+                        <span className="text-xl font-bold text-green-400">
+                          {formatAmount(token.balance)} {token.symbol}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                   <div className="text-[10px] text-gray-500 font-mono truncate mb-4 opacity-60">
                     {output.outputStealth.address}
                   </div>
                   <button
-                    onClick={() => claimCoins(output.outputStealth)}
+                    onClick={() => claimCoins(output.outputStealth, output.outputBalances)}
                     disabled={claiming === output.outputStealth.address}
                     className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 disabled:text-gray-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-blue-500/10 font-tektur"
                   >
@@ -283,19 +293,29 @@ export function StealthOutputsCard() {
               )}
 
               {/* Remainder Stealth */}
-              {BigInt(output.remainderBalance) > 0 && (
+              {output.remainderBalances.length > 0 && (
                 <div>
-                  <div className="flex justify-between items-center mb-2">
+                  <div className="flex justify-between items-center mb-3">
                     <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Remainder</span>
-                    <span className="text-xl font-bold text-blue-400">
-                      {formatAmount(output.remainderBalance)} SUI
-                    </span>
+                  </div>
+                  {/* Token balances */}
+                  <div className="space-y-2 mb-3">
+                    {output.remainderBalances.map((token) => (
+                      <div key={token.type} className="flex items-center gap-2">
+                        <div className="w-6 h-6 relative rounded-full overflow-hidden">
+                          <Image src={token.icon} alt={token.symbol} fill className="object-cover" />
+                        </div>
+                        <span className="text-xl font-bold text-blue-400">
+                          {formatAmount(token.balance)} {token.symbol}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                   <div className="text-[10px] text-gray-500 font-mono truncate mb-4 opacity-60">
                     {output.remainderStealth.address}
                   </div>
                   <button
-                    onClick={() => claimCoins(output.remainderStealth)}
+                    onClick={() => claimCoins(output.remainderStealth, output.remainderBalances)}
                     disabled={claiming === output.remainderStealth.address}
                     className="w-full bg-white/10 hover:bg-white/20 disabled:bg-white/5 disabled:text-gray-500 text-white font-bold py-3 rounded-xl transition font-tektur"
                   >
@@ -307,8 +327,8 @@ export function StealthOutputsCard() {
               )}
 
               {/* Empty state (pending) */}
-              {BigInt(output.outputBalance) === BigInt(0) &&
-                BigInt(output.remainderBalance) === BigInt(0) && (
+              {output.outputBalances.length === 0 &&
+                output.remainderBalances.length === 0 && (
                   <div className="text-center py-4">
                     <div className="flex items-center justify-center gap-2 mb-2">
                       <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />

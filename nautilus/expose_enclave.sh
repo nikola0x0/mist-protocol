@@ -68,6 +68,10 @@ echo "  VSOCK proxy 8102 -> seal-key-server-testnet-1.mystenlabs.com:443"
 vsock-proxy 8103 seal-key-server-testnet-2.mystenlabs.com 443 &
 echo "  VSOCK proxy 8103 -> seal-key-server-testnet-2.mystenlabs.com:443"
 
+# DEX API endpoints for price discovery
+vsock-proxy 8104 api-sui.cetus.zone 443 &
+echo "  VSOCK proxy 8104 -> api-sui.cetus.zone:443 (Cetus DEX)"
+
 echo ""
 echo "Enclave exposed! Test with:"
 echo "  curl http://localhost:3000/health_check"

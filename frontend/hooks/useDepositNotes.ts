@@ -56,12 +56,14 @@ export interface UseDepositNotesReturn {
   /** Create a swap intent (user signs tx directly) */
   createSwapIntent: (
     note: DepositNote,
-    swapAmountSui: string
+    swapAmountSui: string,
+    tokenOut?: string
   ) => Promise<{ success: boolean; error?: string }>;
   /** Create a swap intent via relayer (privacy mode - relayer submits tx) */
   createSwapIntentViaRelayer: (
     note: DepositNote,
-    swapAmountSui: string
+    swapAmountSui: string,
+    tokenOut?: string
   ) => Promise<{ success: boolean; txDigest?: string; error?: string }>;
 }
 
@@ -201,7 +203,8 @@ export function useDepositNotes(): UseDepositNotesReturn {
   const createSwapIntent = useCallback(
     async (
       note: DepositNote,
-      swapAmountSui: string
+      swapAmountSui: string,
+      tokenOut: string = "0x2::sui::SUI"
     ): Promise<{ success: boolean; error?: string }> => {
       if (!currentAccount) {
         return { success: false, error: "Wallet not connected" };
@@ -281,8 +284,8 @@ export function useDepositNotes(): UseDepositNotesReturn {
           target: `${PACKAGE_ID}::mist_protocol::create_swap_intent`,
           arguments: [
             tx.pure.vector("u8", Array.from(new TextEncoder().encode(encryptedDetails))),
-            tx.pure.vector("u8", Array.from(new TextEncoder().encode("SUI"))),
-            tx.pure.vector("u8", Array.from(new TextEncoder().encode("SUI"))), // SUI→SUI for now
+            tx.pure.vector("u8", Array.from(new TextEncoder().encode("0x2::sui::SUI"))), // token_in is always SUI
+            tx.pure.vector("u8", Array.from(new TextEncoder().encode(tokenOut))), // token_out from DEX selection
             tx.pure.u64(deadline),
           ],
         });
@@ -332,7 +335,8 @@ export function useDepositNotes(): UseDepositNotesReturn {
   const createSwapIntentViaRelayer = useCallback(
     async (
       note: DepositNote,
-      swapAmountSui: string
+      swapAmountSui: string,
+      tokenOut: string = "0x2::sui::SUI"
     ): Promise<{ success: boolean; txDigest?: string; error?: string }> => {
       if (!currentAccount) {
         return { success: false, error: "Wallet not connected" };
@@ -406,8 +410,8 @@ export function useDepositNotes(): UseDepositNotesReturn {
         console.log("[Relayer Mode] Submitting intent via relayer...");
         const relayerResult = await submitIntentViaRelayer(
           encryptedDetails,
-          "SUI",
-          "SUI" // SUI→SUI for now
+          "0x2::sui::SUI", // token_in is always SUI
+          tokenOut // token_out from DEX selection
         );
 
         if (!relayerResult.success) {

@@ -200,7 +200,54 @@ entry fun create_swap_intent(
 
 // ============ TEE EXECUTION ============
 
-/// TEE executes swap with SUI output
+/// TEE withdraws SUI from pool for external DEX swap
+/// Marks nullifier as spent, returns SUI to TEE
+/// TEE then swaps on Cetus/FlowX and sends to stealth address
+public fun withdraw_for_swap(
+    registry: &mut NullifierRegistry,
+    pool: &mut LiquidityPool,
+    intent: SwapIntent,
+    nullifier: vector<u8>,       // Revealed by TEE after decryption
+    withdraw_amount: u64,        // Amount to withdraw for swap
+    ctx: &mut TxContext,
+): Coin<SUI> {
+    // Only TEE can execute
+    assert!(tx_context::sender(ctx) == pool.tee_authority, E_NOT_TEE);
+    assert!(!pool.paused, E_PAUSED);
+
+    // Check deadline
+    assert!(tx_context::epoch_timestamp_ms(ctx) <= intent.deadline, E_DEADLINE_PASSED);
+
+    // Verify nullifier not already spent (double-spend protection)
+    assert!(!table::contains(&registry.spent, nullifier), E_NULLIFIER_SPENT);
+
+    // Mark nullifier as spent
+    table::add(&mut registry.spent, nullifier, true);
+
+    // Verify pool has enough balance
+    assert!(balance::value(&pool.sui_balance) >= withdraw_amount, E_INSUFFICIENT_BALANCE);
+
+    // Hash nullifier for event (don't reveal raw nullifier in events)
+    let nullifier_hash = sui::hash::blake2b256(&nullifier);
+
+    // Emit event (output details will be in the transfer tx)
+    event::emit(SwapExecutedEvent {
+        nullifier_hash,
+        output_stealth: @0x0, // TEE will handle transfer
+        remainder_stealth: @0x0,
+        output_amount: withdraw_amount,
+        remainder_amount: 0,
+    });
+
+    // Cleanup intent
+    let SwapIntent { id, encrypted_details: _, token_in: _, token_out: _, deadline: _ } = intent;
+    object::delete(id);
+
+    // Return SUI coin to TEE for external swap
+    coin::from_balance(balance::split(&mut pool.sui_balance, withdraw_amount), ctx)
+}
+
+/// TEE executes swap with SUI output (legacy - for SUI→SUI privacy mixer)
 /// Marks nullifier as spent and sends to stealth addresses
 /// NO deposit ID passed - TEE already scanned all deposits offchain
 entry fun execute_swap(
