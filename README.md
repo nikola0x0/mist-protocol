@@ -4,7 +4,7 @@
 
 **Privacy-preserving DeFi swaps on Sui using TEE (Trusted Execution Environment) and SEAL encryption**
 
-Built with: [AWS Nitro Enclaves](https://aws.amazon.com/ec2/nitro/nitro-enclaves/) • [SEAL](https://docs.mystenlabs.com/seal) • [Cetus](https://cetus.zone) • [Sui](https://sui.io)
+Built with: [AWS Nitro Enclaves](https://aws.amazon.com/ec2/nitro/nitro-enclaves/) • [SEAL](https://docs.mystenlabs.com/seal) • [Sui](https://sui.io)
 
 ---
 
