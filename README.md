@@ -1,8 +1,8 @@
 # Mist Protocol
 
-**Privacy-preserving DeFi swaps on Sui using Nautilus TEE and SEAL encryption**
+**Privacy-preserving DeFi swaps on Sui using TEE (Trusted Execution Environment) and SEAL encryption**
 
-Built with: [Nautilus](https://docs.sui.io/concepts/cryptography/nautilus) • [SEAL](https://docs.mystenlabs.com/seal) • [Cetus](https://cetus.zone) • [Sui](https://sui.io)
+Built with: [AWS Nitro Enclaves](https://aws.amazon.com/ec2/nitro/nitro-enclaves/) • [SEAL](https://docs.mystenlabs.com/seal) • [Cetus](https://cetus.zone) • [Sui](https://sui.io)
 
 ---
 
@@ -10,9 +10,9 @@ Built with: [Nautilus](https://docs.sui.io/concepts/cryptography/nautilus) • [
 
 Mist Protocol enables **truly private token swaps** on Sui by combining:
 - **SEAL threshold encryption** for hiding swap amounts
-- **Nautilus TEE** (AWS Nitro Enclaves) for trusted execution
-- **Intent-based architecture** for asynchronous swap processing
-- **TEE wallet separation** to break on-chain linkability
+- **TEE** (AWS Nitro Enclaves) for trusted execution with hardware attestation
+- **Privacy relayer** to break on-chain linkability
+- **Stealth addresses** for unlinkable swap outputs
 
 Unlike traditional DEXs where every swap is publicly visible, Mist Protocol keeps swap amounts private while maintaining verifiability through TEE attestation.
 
@@ -20,69 +20,68 @@ Unlike traditional DEXs where every swap is publicly visible, Mist Protocol keep
 
 ## Key Innovation
 
-### Privacy Through TEE Wallet Separation
+### Privacy Through Stealth Addresses
 
 ```
 Traditional DEX:                  Mist Protocol:
-User Wallet → Swap → Output       User → Encrypted Intent → TEE Wallet → Swap → Encrypted Output
-     ↑                                                           ↑
-  Publicly linked                                    Unlinkable on-chain
+User Wallet → Swap → Output       User → Deposit → Intent → TEE → Stealth → Claim
+     ↑                                     ↑                        ↑
+  Publicly linked              No owner field              Unlinkable address
 ```
 
-**Result:** On-chain observers cannot link users to their swap transactions!
+**Result:** On-chain observers cannot link deposits to swap outputs!
 
 ---
 
 ## How It Works
 
-### 1. Deposit & Get Encrypted Tickets
+### 1. Deposit & Get Deposit Note
 
 ```
 User deposits 1.0 SUI
   ↓
-Creates encrypted ticket in vault
+Creates deposit with secret nullifier
   ↓
-User can decrypt: "1.0 SUI"
-TEE can decrypt: "1.0 SUI"
-On-chain: [encrypted bytes]
+Deposit note stored locally (encrypted)
+On-chain: Deposit object (no owner field - privacy!)
 ```
 
 ### 2. Create Swap Intent
 
 ```
-User selects tickets to swap
+User generates stealth addresses (output + remainder)
   ↓
-Frontend encrypts intent with SEAL
+Signs intent with wallet (proves ownership)
   ↓
-On-chain: SwapIntent object added to IntentQueue
+Frontend SEAL-encrypts: nullifier, amounts, stealth addresses
   ↓
-Backend polls queue every 5 seconds
+Submit on-chain (direct or via optional relayer)
+  ↓
+On-chain: SwapIntent added to IntentQueue
 ```
 
 ### 3. TEE Executes Swap
 
 ```
-Backend detects intent
+Backend polls queue every 5 seconds
   ↓
 Decrypts with SEAL (2-of-3 threshold)
   ↓
-TEE wallet executes swap on Cetus
+Verifies wallet signature (prevents nullifier theft)
   ↓
-Re-encrypts output with SEAL
+TEE wallet executes swap on FlowX
   ↓
-Creates new encrypted ticket in user vault
+Sends output to stealth address (unlinkable!)
 ```
 
-### 4. User Receives Output
+### 4. Claim from Stealth Address
 
 ```
-User refreshes vault
+User sees tokens at stealth address
   ↓
-Sees new encrypted output ticket
+Claims to main wallet (sponsored tx)
   ↓
-Decrypts with SEAL: "0.95 SUI"
-  ↓
-Can unwrap to get real tokens
+On-chain: No link between deposit and output!
 ```
 
 ---
@@ -98,21 +97,21 @@ Can unwrap to get real tokens
 ┌─────────────────────────────────────────────────────┐
 │          Sui Blockchain (Move Contracts)            │
 │                                                     │
-│  LiquidityPool  │  VaultEntry  │  IntentQueue      │
-│  (Shared)       │  (Per-user)  │  (Shared)         │
+│  Deposits       │  NullifierReg │  IntentQueue      │
+│  (Shared)       │  (Shared)     │  (Shared)         │
 │                                                     │
-│  - SUI/USDC     │  - Encrypted │  - Pending        │
-│  - TEE wallet   │    tickets   │    intents        │
+│  - No owner     │  - Spent      │  - Pending        │
+│    field!       │    nullifiers │    intents        │
 └─────────────────────────────────────────────────────┘
        ▲                                      │
        │                                      │ Polls every 5s
        │ Executes signed tx                  ▼
        │                          ┌──────────────────────┐
-       │                          │  Nautilus Backend    │
-       │                          │  (Rust + TEE)        │
+       │                          │  TEE Backend         │
+       │                          │  (Rust + AWS Nitro)  │
        │                          │                      │
        │                          │  - SEAL decrypt      │
-       │                          │  - Cetus swap        │
+       │                          │  - DEX swap          │
        │                          │  - SEAL encrypt      │
        │                          │  - Build tx          │
        │                          └──────────┬───────────┘
@@ -135,12 +134,12 @@ Can unwrap to get real tokens
 | Component | Technology |
 |-----------|------------|
 | **Smart Contracts** | Sui Move |
-| **Backend (TEE)** | Rust, Axum, Nautilus, SEAL SDK |
+| **Backend (TEE)** | Rust, Axum, SEAL SDK |
 | **Signing Service** | Rust, Axum, Sui CLI |
 | **Frontend** | Next.js 14, TypeScript, @mysten/dapp-kit |
-| **Encryption** | SEAL (threshold encryption) |
-| **DEX** | Cetus Protocol |
-| **TEE** | AWS Nitro Enclaves |
+| **Encryption** | SEAL (2-of-3 threshold encryption) |
+| **DEX** | FlowX (testnet) → MIST_TOKEN |
+| **TEE** | AWS Nitro Enclaves (hardware attestation) |
 
 ---
 
@@ -148,34 +147,32 @@ Can unwrap to get real tokens
 
 ```
 mist-protocol/
-├── backend/              # Nautilus TEE backend (Rust)
-│   ├── src/apps/mist-protocol/
-│   │   ├── intent_processor.rs   # Polls IntentQueue
-│   │   ├── swap_executor.rs      # Executes swaps
-│   │   └── seal_encryption.rs    # SEAL crypto
-│   └── Cargo.toml
+├── backend/              # TEE backend (Rust + AWS Nitro)
+│   └── src/apps/mist-protocol/
+│       ├── intent_processor.rs   # Polls IntentQueue
+│       ├── swap_executor.rs      # Executes swaps via FlowX
+│       └── seal_encryption.rs    # SEAL crypto
+│
+├── enclave/              # AWS Nitro Enclave deployment
+│   ├── Makefile          # Build enclave image
+│   ├── deploy.sh         # Deployment scripts
+│   └── AWS_QUICKSTART.md # Deployment guide
 │
 ├── tx-signer/            # Transaction signing service
-│   ├── src/main.rs       # HTTP wrapper around sui keytool
-│   └── Cargo.toml
+│   └── src/main.rs       # HTTP wrapper around sui keytool
 │
 ├── contracts/            # Sui Move smart contracts
 │   └── mist_protocol/
 │       └── sources/
 │           ├── mist_protocol.move    # Main protocol
-│           └── seal_policy.move      # Vault + tickets
+│           └── seal_policy.move      # TEE + user decryption
 │
 ├── frontend/             # Next.js frontend
-│   ├── app/              # Pages
+│   ├── app/              # Pages + privacy relayer API
 │   ├── components/       # React components
-│   └── lib/seal-vault.ts # SEAL integration
-│
-├── cetus-swap/           # Cetus integration (future)
+│   └── lib/deposit-notes.ts # Stealth address + note management
 │
 └── docs/                 # Documentation
-    ├── ARCHITECTURE.md   # System design
-    ├── SETUP.md          # Installation guide
-    └── SIGNING_SOLUTION.md  # Technical notes
 ```
 
 ---
@@ -243,32 +240,24 @@ cd frontend && pnpm dev
 ### 1. Deposit SUI
 - Connect wallet
 - Deposit 0.5 SUI
-- Receive encrypted ticket #1
+- Receive deposit note with secret nullifier
 
-### 2. View Balance (Private!)
-- Click "Decrypt" on ticket
-- Sign message with wallet
-- See: "0.5 SUI" ✅
-- On-chain: Only encrypted bytes visible
+### 2. Create Swap Intent
+- Select deposit note (0.5 SUI)
+- Swap to: MIST_TOKEN
+- Sign intent with wallet
+- Generates stealth addresses automatically
 
-### 3. Create Swap Intent
-- Select ticket #1 (0.5 SUI)
-- Swap to: USDC
-- Min output: 0.475 USDC (5% slippage)
-- Create intent
-
-### 4. TEE Processes (Automatic)
+### 3. TEE Processes (Automatic)
 Backend logs show:
 ```
 📊 Poll cycle #5
 ✅ Successfully decrypted intent
    🎯 Intent: 0x1e6f...
-   💱 Swap: 0.5 SUI → USDC (min: 0.475)
-   🎫 Tickets: ["#1: 0.5"]
+   💱 Swap: 0.5 SUI → MIST_TOKEN
+   ✅ Signature verified!
 
-🔄 Executing swap...
-   🔐 Encrypting output amount with SEAL...
-   ✅ Encrypted successfully!
+🔄 Executing swap on FlowX...
    🔐 Calling signing service...
    ✅ Transaction signed successfully!
    🚀 Executing signed transaction on-chain...
@@ -276,11 +265,11 @@ Backend logs show:
    📝 Transaction: rkZeR5Fw5j...
 ```
 
-### 5. View Output
-- Refresh vault
-- See new ticket #2
-- Decrypt: "0.48 USDC" ✅
-- Unwrap to get real USDC
+### 4. Claim Output
+- Check "Claim" tab
+- See MIST_TOKEN at stealth address
+- Click "Claim to Main Wallet"
+- Tokens transferred (unlinkable on-chain!)
 
 ---
 
@@ -292,19 +281,25 @@ Backend logs show:
 - Even node operators cannot see amounts
 
 ### 🔒 TEE Security
-- AWS Nitro Enclaves provide hardware attestation
-- Backend code verifiable through attestation document
-- Keys released only to verified TEE
+- AWS Nitro Enclaves provide hardware-based trusted execution
+- Cryptographic attestation proves code integrity
+- SEAL keys released only to verified TEE
+- Ephemeral keypairs generated inside enclave (never written to disk)
 
 ### 🎯 Intent-Based
 - Users submit intents, TEE executes asynchronously
 - No need to stay online during swap
 - MEV-resistant (intents processed in queue order)
 
-### 💡 TEE Wallet Separation
-- TEE uses its own wallet for swaps
-- Breaks user → swap transaction linkage
-- Enhanced privacy vs traditional DEXs
+### 🔄 Privacy Relayer (Optional)
+- Relayer can submit swap intents on behalf of users
+- User's wallet never touches the swap transaction
+- Extra privacy layer for those who want it
+
+### 💡 Stealth Addresses
+- Swap outputs sent to unlinkable stealth addresses
+- User generates keypair locally, only they can claim
+- On-chain: No link between deposit and output
 
 ---
 
@@ -312,21 +307,23 @@ Backend logs show:
 
 ### ✅ Working Features (Tested & Verified)
 
-- [x] Deposit SUI/USDC with SEAL encryption
-- [x] Create encrypted swap intents
+- [x] Deposit tokens with secret nullifier
+- [x] Create encrypted swap intents with stealth addresses
+- [x] Optional privacy relayer (submits intents on behalf of users)
+- [x] Wallet signature verification (prevents nullifier theft)
 - [x] TEE polls IntentQueue every 5 seconds
 - [x] SEAL threshold decryption (2-of-3 key servers)
 - [x] Transaction signing via tx-signer service
-- [x] Execute swap transactions on-chain
-- [x] Create encrypted output tickets
-- [x] User decrypt output amounts
-- [x] Unwrap tickets to real tokens
+- [x] Execute swap on FlowX DEX
+- [x] Send output to unlinkable stealth addresses
+- [x] Claim tokens from stealth addresses
 
 ### 🚧 In Progress
 
-- [ ] Real Cetus swap integration (currently mock: SUI → SUI)
-- [ ] USDC swap support
-- [ ] Production deployment to AWS Nitro Enclaves
+- [ ] Cetus mainnet integration (implemented, pending deployment)
+- [ ] Production deployment to AWS Nitro Enclaves (c5.xlarge)
+
+**Note:** Testnet uses FlowX → MIST_TOKEN. Cetus mainnet swap is implemented but not yet deployed.
 
 ### 🎯 Future Enhancements
 
@@ -363,6 +360,13 @@ First DeFi protocol on Sui to use SEAL threshold encryption for:
 - TEE-verifiable decryption
 - Dual-party access (user + TEE)
 
+### Wallet Signature Verification
+
+Every swap intent requires a wallet signature to prevent nullifier theft attacks:
+- Message format: `mist_intent_v2:{nullifier}:{inputAmount}:{outputStealth}:{remainderStealth}`
+- TEE verifies signature before executing (Ed25519, Secp256k1, Secp256r1 supported)
+- Attackers cannot steal nullifiers without the user's wallet private key
+
 ### Intent Queue Architecture
 
 100% on-chain intent tracking:
@@ -379,25 +383,26 @@ First DeFi protocol on Sui to use SEAL threshold encryption for:
 
 **What's Private:**
 - Individual swap amounts (SEAL encrypted)
-- User ticket balances (SEAL encrypted)
-- User → swap linkage (TEE wallet breaks link)
+- Deposit ownership (no owner field on-chain)
+- User → swap linkage (stealth addresses break link)
 
 **What's Public:**
-- Total pool liquidity (required for AMM)
-- Swap events (user address, tokens, but amounts encrypted)
-- Intent queue (pending vs completed)
+- Deposit events (no amounts, no owner)
+- Intent queue state (encrypted contents)
+- Stealth address balances (unlinkable to user)
 
 ### Trust Model
 
 **Trusted:**
-- AWS Nitro Enclaves (hardware attestation)
-- SEAL key servers (2-of-3 threshold)
+- AWS Nitro Enclaves (hardware attestation via NSM API)
+- SEAL key servers (2-of-3 threshold - no single point of failure)
 - Smart contract logic (auditable on-chain)
+- TEE backend address (hardcoded in contract for authorization)
 
 **Not Trusted:**
 - Individual key servers (threshold prevents collusion)
-- RPC nodes (cannot decrypt)
-- Frontend (encryption happens client-side)
+- RPC nodes (cannot decrypt - see only encrypted bytes)
+- Frontend (encryption happens client-side with SEAL SDK)
 
 ---
 
@@ -417,9 +422,9 @@ First DeFi protocol on Sui to use SEAL threshold encryption for:
 ## Resources
 
 - **Sui Documentation:** https://docs.sui.io
-- **Nautilus TEE:** https://docs.sui.io/concepts/cryptography/nautilus
+- **AWS Nitro Enclaves:** https://aws.amazon.com/ec2/nitro/nitro-enclaves/
 - **SEAL Encryption:** https://docs.mystenlabs.com/seal
-- **Cetus DEX:** https://cetus.zone
+- **FlowX DEX:** https://flowx.finance
 
 ---
 
@@ -427,17 +432,16 @@ First DeFi protocol on Sui to use SEAL threshold encryption for:
 
 Apache-2.0
 
-Copyright (c) Mysten Labs (Nautilus framework)
 Mist Protocol implementation by Nikola & Max
 
 ---
 
 ## Acknowledgments
 
-- **Mysten Labs** for Nautilus, SEAL, and Sui
+- **Mysten Labs** for SEAL and Sui
 - **Cetus Protocol** for DEX infrastructure
 - **AWS** for Nitro Enclaves
 
 ---
 
-**Built for Sui Hackathon - November 2025**
+**Built for Sui Hackathon**
