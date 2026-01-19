@@ -444,4 +444,4 @@ Mist Protocol implementation by Nikola & Max
 
 ---
 
-**Built for Sui Hackathon**
+**Built by Misty Labs**
