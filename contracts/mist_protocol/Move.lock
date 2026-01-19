@@ -2,44 +2,13 @@
 # This file should be checked in.
 
 [move]
-version = 3
-manifest_digest = "5FC7C6DC32D04F1F20986C555766BB3881BD8CFF6571661BC0B6005DA5EF4D1F"
-deps_digest = "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600"
-dependencies = [
-  { id = "Sui", name = "Sui" },
-  { id = "enclave", name = "enclave" },
-]
-
-[[move.package]]
-id = "MoveStdlib"
-source = { git = "https://github.com/MystenLabs/sui.git", rev = "testnet-v1.61.2", subdir = "crates/sui-framework/packages/move-stdlib" }
-
-[[move.package]]
-id = "Sui"
-source = { git = "https://github.com/MystenLabs/sui.git", rev = "testnet-v1.61.2", subdir = "crates/sui-framework/packages/sui-framework" }
-
-dependencies = [
-  { id = "MoveStdlib", name = "MoveStdlib" },
-]
+version = 4
 
 [pinned.testnet.MoveStdlib]
 source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "6c229fe6c04fb21ec98751c798e57e9a00e028e2" }
 use_environment = "testnet"
 manifest_digest = "C4FE4C91DE74CBF223B2E380AE40F592177D21870DC2D7EB6227D2D694E05363"
 deps = {}
-
-[[move.package]]
-id = "enclave"
-source = { local = "../enclave" }
-
-dependencies = [
-  { id = "Sui", name = "Sui" },
-]
-
-[move.toolchain-version]
-compiler-version = "1.61.2"
-edition = "2024.beta"
-flavor = "sui"
 
 [pinned.testnet.Sui]
 source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "6c229fe6c04fb21ec98751c798e57e9a00e028e2" }
@@ -58,11 +27,3 @@ source = { root = true }
 use_environment = "testnet"
 manifest_digest = "671791616B1D5F7ED5E89D1888E90FC8390DBDD4ECCF15F8676983076CE2F778"
 deps = { Sui = "Sui", enclave = "enclave" }
-
-[env]
-
-[env.testnet]
-chain-id = "4c78adac"
-original-published-id = "0x721e4d1a9c221974966e8e6768c88e313e0bf7d580a3514239efaf4635943109"
-latest-published-id = "0x721e4d1a9c221974966e8e6768c88e313e0bf7d580a3514239efaf4635943109"
-published-version = "1"
