@@ -434,7 +434,7 @@ Every swap intent requires a wallet signature to prevent nullifier theft attacks
 
 Apache-2.0
 
-Mist Protocol implementation by Nikola & Max
+Mist Protocol **built by Misty Labs**
 
 ---
 
@@ -445,5 +445,3 @@ Mist Protocol implementation by Nikola & Max
 - **AWS** for Nitro Enclaves
 
 ---
-
-**Built by Misty Labs**
