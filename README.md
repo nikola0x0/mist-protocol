@@ -1,5 +1,7 @@
 # Mist Protocol
 
+Status: EC2 instance terminated. 
+
 [First Mover Sprint Submission](https://www.deepsurge.xyz/projects/37682138-79c9-48ca-86b9-10f693a37fa4) 
 
 **Privacy-preserving DeFi swaps on Sui using TEE (Trusted Execution Environment) and SEAL encryption**
